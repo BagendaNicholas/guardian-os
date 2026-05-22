@@ -1,1 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianOS - Command Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-body">
+
+    <div class="background-grid"></div>
+
+    <header class="dashboard-header">
+        <div class="brand">
+            <i class="fa-solid fa-shield-halved tech-glow"></i>
+            <h2>GUARDIAN<span class="accent-text">OS</span></h2>
+        </div>
+        <div class="system-status-indicator">
+            <span class="pulse-dot"></span>
+            <span id="connection-status">LINK ESTABLISHED</span>
+        </div>
+        <button id="btn-logout" class="logout-btn"><i class="fa-solid fa-power-off"></i> DISCONNECT</button>
+    </header>
+
+    <main class="dashboard-grid-container">
+
+        <section class="crypto-card">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-microchip"></i> SYSTEM METRICS</h3>
+            </div>
+            <div class="card-body">
+                <div class="metric-item">
+                    <span class="metric-label"><i class="fa-solid fa-battery-three-quarters"></i> BATTERY LEVEL</span>
+                    <span id="battery-text" class="metric-value">--%</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label"><i class="fa-solid fa-wifi"></i> NETWORK PROTOCOL</span>
+                    <span id="network-text" class="metric-value">UNKNOWN</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label"><i class="fa-solid fa-mobile-screen-button"></i> DEVICE STATE</span>
+                    <span id="device-state-text" class="metric-value status-secure">SECURE</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="crypto-card">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-location-crosshairs"></i> GPS TELEMETRY</h3>
+            </div>
+            <div class="card-body telemetry-layout">
+                <div class="metric-item">
+                    <span class="metric-label">COORDINATES</span>
+                    <span id="gps-text" class="metric-value data-stream">Waiting for coordinates...</span>
+                </div>
+                <a id="map-link" href="#" target="_blank" class="cyber-action-btn disabled">
+                    <i class="fa-solid fa-map-location-dot"></i> OPEN GEOLOCATION MAP
+                </a>
+            </div>
+        </section>
+
+        <section class="crypto-card control-matrix">
+            <div class="card-header">
+                <h3><i class="fa-solid fa-terminal"></i> ACTION EXECUTIVE MATRIX</h3>
+            </div>
+            <div class="card-grid">
+                <button id="cmd-flashlight" class="matrix-btn">
+                    <i class="fa-solid fa-lightbulb"></i>
+                    <span>FLASHLIGHT</span>
+                </button>
+                <button id="cmd-alarm" class="matrix-btn">
+                    <i class="fa-solid fa-volume-high"></i>
+                    <span>TRIGGER ALARM</span>
+                </button>
+                <button id="cmd-lock" class="matrix-btn alert-action">
+                    <i class="fa-solid fa-lock"></i>
+                    <span>EMERGENCY LOCK</span>
+                </button>
+                <button id="cmd-capture" class="matrix-btn">
+                    <i class="fa-solid fa-camera"></i>
+                    <span>CAMERA CAPTURE</span>
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <script type="module" src="dashboard.js"></script>
+</body>
+</html>
 
