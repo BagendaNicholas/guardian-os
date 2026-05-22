@@ -211,4 +211,271 @@ h1 {
 .auth-footer a:hover {
     text-shadow: 0 0 8px var(--primary-glow);
 }
+/* ==========================================================================
+   6. DASHBOARD STRUCTURAL LAYOUT
+   ========================================================================== */
+.dashboard-body {
+    display: block; /* Overrides the flex positioning used on the login page */
+    overflow-y: auto;
+    min-height: 100vh;
+    padding-bottom: 40px;
+}
+
+.dashboard-header {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 40px;
+    background: rgba(6, 9, 19, 0.85);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+}
+
+.dashboard-header h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 3px;
+}
+
+/* System Pulse Active Link Indicator */
+.system-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--primary-glow);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--primary-glow);
+    animation: cyber-pulse 2s infinite;
+}
+
+@keyframes cyber-pulse {
+    0% { transform: scale(0.9); opacity: 0.6; }
+    50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 16px var(--primary-glow); }
+    100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+/* Disconnect Button */
+.logout-btn {
+    background: transparent;
+    border: 1px solid var(--error-neon);
+    color: #ffb3c6;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 700;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+    background: var(--error-neon);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+}
+
+/* ==========================================================================
+   7. MAIN WORKSPACE RESPONSIVE GRID
+   ========================================================================== */
+.dashboard-grid-container {
+    position: relative;
+    z-index: 3;
+    max-width: 1200px;
+    margin: 40px auto 0 auto;
+    padding: 0 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 25px;
+}
+
+/* ==========================================================================
+   8. GLASSMORPHIC METRIC CARDS
+   ========================================================================== */
+.crypto-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid rgba(0, 242, 254, 0.1);
+}
+
+.card-header h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    color: var(--accent-glow);
+}
+
+.card-header h3 i {
+    margin-right: 8px;
+    color: var(--primary-glow);
+}
+
+.card-body {
+    padding: 20px;
+    flex-grow: 1;
+}
+
+/* Telemetry Lists */
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.metric-item:last-child {
+    border-bottom: none;
+}
+
+.metric-label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.metric-label i {
+    margin-right: 5px;
+}
+
+.metric-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: #fff;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+.data-stream {
+    font-size: 0.9rem;
+    color: var(--primary-glow);
+}
+
+.status-secure {
+    color: #00ff88;
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+}
+
+/* Map Button Anchor Context */
+.telemetry-layout {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.cyber-action-btn {
+    display: block;
+    text-align: center;
+    padding: 12px;
+    background: rgba(0, 242, 254, 0.1);
+    border: 1px solid var(--primary-glow);
+    color: var(--primary-glow);
+    text-decoration: none;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.cyber-action-btn:not(.disabled):hover {
+    background: var(--primary-glow);
+    color: var(--bg-color);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+}
+
+.cyber-action-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: var(--text-muted);
+    color: var(--text-muted);
+    background: transparent;
+}
+
+/* ==========================================================================
+   9. COMMAND EXECUTIVE BUTTON MATRIX
+   ========================================================================== */
+.card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    padding: 20px;
+}
+
+.matrix-btn {
+    background: rgba(6, 9, 19, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 20px 10px;
+    color: var(--text-main);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.matrix-btn i {
+    font-size: 1.5rem;
+    color: var(--accent-glow);
+    transition: transform 0.2s ease;
+}
+
+.matrix-btn span {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.matrix-btn:hover {
+    border-color: var(--primary-glow);
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+    background: rgba(0, 242, 254, 0.02);
+}
+
+.matrix-btn:hover i {
+    transform: scale(1.1);
+    color: var(--primary-glow);
+}
+
+/* Alert State Buttons (Emergency Lock, etc.) */
+.matrix-btn.alert-action:hover {
+    border-color: var(--error-neon);
+    box-shadow: 0 0 10px rgba(255, 0, 85, 0.2);
+    background: rgba(255, 0, 85, 0.02);
+}
+
+.matrix-btn.alert-action:hover i {
+    color: var(--error-neon);
+}
+
+/* Active State Styles (When a toggle parameter is turned ON) */
+.matrix-btn.active-state {
+    background: rgba(0, 242, 254, 0.15);
+    border-color: var(--primary-glow);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+}
+.matrix-btn.active-state i {
+    color: var(--primary-glow);
+    text-shadow: 0 0 8px var(--primary-glow);
+}
 
