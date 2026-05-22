@@ -25,7 +25,7 @@ let authMode = "login";
 onAuthStateChanged(auth, (user) => {
     if (user) {
         console.log("Active session authenticated:", user.email);
-        window.location.href = "dashboard.html";
+        window.location.href = "./dashboard.html"; // Fixed relative path routing for GitHub Pages
     }
 });
 
@@ -47,12 +47,12 @@ authForm.addEventListener("submit", async (e) => {
             // Process Login
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             console.log("Terminal authorized successfully:", userCredential.user.uid);
-            window.location.href = "dashboard.html";
+            window.location.href = "./dashboard.html"; // Fixed relative path routing
         } else {
             // Process Account Registration
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             console.log("New system node created:", userCredential.user.uid);
-            window.location.href = "dashboard.html";
+            window.location.href = "./dashboard.html"; // Fixed relative path routing
         }
     } catch (error) {
         console.error("Authentication fault:", error.code, error.message);
@@ -122,4 +122,3 @@ function formatFirebaseError(errorCode) {
             return "Connection fault. Check security protocols.";
     }
 }
-
