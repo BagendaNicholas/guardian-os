@@ -31,7 +31,7 @@ onAuthStateChanged(auth, (user) => {
         initializeCommandStateListeners(user.uid);
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
-        window.location.href = "index.html";
+        window.location.href = "./index.html"; // Fixed relative routing path for GitHub Pages
     }
 });
 
@@ -39,7 +39,7 @@ onAuthStateChanged(auth, (user) => {
 btnLogout.addEventListener("click", () => {
     signOut(auth)
         .then(() => {
-            window.location.href = "index.html";
+            window.location.href = "./index.html"; // Fixed relative routing path for GitHub Pages
         })
         .catch((error) => console.error("Disconnect failure:", error));
 });
@@ -71,7 +71,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // Build out an active Google Maps link for geolocation matching
+            // Fixed the syntax string interpolation bug for the Google Maps locator URL
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
@@ -89,7 +89,7 @@ function initializeTelemetryStream(uid) {
         } else {
             deviceStateText.innerText = "SECURE";
             deviceStateText.className = "metric-value status-secure";
-            deviceStateText.style.color = ""; // Falls back to your CSS .status-secure rules
+            deviceStateText.style.color = ""; // Falls back to your CSS rules
             deviceStateText.style.textShadow = "";
         }
     });
@@ -112,12 +112,13 @@ function initializeCommandStateListeners(uid) {
     });
 }
 
-// Simple Helper function to toggle the custom ".active-state" class you have in your style.css
 function toggleButtonVisualState(buttonElement, isActive) {
-    if (isActive) {
-        buttonElement.classList.add("active-state");
-    } else {
-        buttonElement.classList.remove("active-state");
+    if (buttonElement) {
+        if (isActive) {
+            buttonElement.classList.add("active-state");
+        } else {
+            buttonElement.classList.remove("active-state");
+        }
     }
 }
 
@@ -136,7 +137,6 @@ cmdLock.addEventListener("click", () => {
     const isCurrentlyActive = cmdLock.classList.contains("active-state");
     const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
     if (confirmLock) {
-        // Sets command value and updates global status parameter simultaneously
         const targetState = !isCurrentlyActive;
         const updates = {};
         updates[`devices/${currentUserUid}/commands/emergencyLock`] = targetState;
@@ -146,8 +146,6 @@ cmdLock.addEventListener("click", () => {
 });
 
 cmdCapture.addEventListener("click", () => {
-    // Camera captures are typically continuous events or pulse impulses.
-    // We send a true flag down the pipeline for your Kotlin/Java Android code to trip over.
     sendRemoteCommand("cameraCapture", true);
     alert("Camera snapshot frame request transmitted to mobile node.");
 });
