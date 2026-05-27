@@ -77,13 +77,36 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Cleared typography brackets and pointed to standard secure Google Maps coordinates layout
+            // FIXED: Cleared syntax bug and pointed link parameters to standard web coordinates schema
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
             gpsText.innerText = "Waiting for coordinates...";
             mapLink.classList.add("disabled");
             mapLink.removeAttribute("href");
+        }
+
+        // FIXED: Intercept incoming background camera snapshot links from Firebase Storage
+        const imageElement = document.getElementById('cameraPreviewFrame');
+        const placeholderText = document.getElementById('cameraPlaceholderText');
+        const timestampElement = document.getElementById('captureTimestamp');
+        
+        // Ensure UI components exist in your HTML before attempting data rendering mutations
+        if (imageElement && placeholderText) {
+            if (data.lastPhotoUrl && data.lastPhotoUrl.trim() !== "") {
+                placeholderText.style.display = "none";
+                imageElement.style.display = "block";
+                imageElement.src = data.lastPhotoUrl;
+                
+                if (timestampElement) {
+                    const currentTime = new Date().toLocaleTimeString();
+                    timestampElement.innerText = `Last updated: Today at ${currentTime}`;
+                }
+            } else {
+                imageElement.style.display = "none";
+                placeholderText.style.display = "block";
+                if (timestampElement) timestampElement.innerText = "Last updated: Never";
+            }
         }
 
         // Update Overall Security Device States
