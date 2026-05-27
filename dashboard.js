@@ -71,7 +71,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // Fixed the syntax string interpolation bug for the Google Maps locator URL
+            // FIXED: Clean string interpolation for working worldwide Google Maps search layout
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
