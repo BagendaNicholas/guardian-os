@@ -482,8 +482,29 @@ h1 {
     text-shadow: 0 0 8px var(--primary-glow) !important;
 }
 
-/* Custom active overlay for the Emergency Lock button when engaged */
+/* FIXED & COMPLETED: Custom active overlay for the Emergency Lock button when engaged */
 .matrix-btn.alert-action.active-state {
     background: rgba(255, 0, 85, 0.2) !important;
     border-color: var(--error-neon) !important;
-    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4)
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4) !important;
+}
+
+.matrix-btn.alert-action.active-state i {
+    color: var(--error-neon) !important;
+    text-shadow: 0 0 8px var(--error-neon) !important;
+}
+
+/* ==========================================================================
+   10. ADDED: CAMERA PREVIEW FEED EFFECTS
+   ========================================================================== */
+#cameraPreviewFrame {
+    border: 1px solid rgba(0, 242, 254, 0.15);
+    animation: monitor-flicker 4s infinite;
+}
+
+@keyframes monitor-flicker {
+    0% { opacity: 0.98; filter: brightness(1); }
+    50% { opacity: 1; filter: brightness(1.05); }
+    51% { opacity: 0.97; filter: brightness(0.98); }
+    100% { opacity: 0.99; filter: brightness(1); }
+}
