@@ -77,8 +77,8 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Valid global coordinates query URL for standard browsers
-            mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
+            // FIXED: Cleared typography brackets and pointed to standard secure Google Maps coordinates layout
+            mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
             gpsText.innerText = "Waiting for coordinates...";
