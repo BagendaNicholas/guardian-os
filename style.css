@@ -211,6 +211,7 @@ h1 {
 .auth-footer a:hover {
     text-shadow: 0 0 8px var(--primary-glow);
 }
+
 /* ==========================================================================
    6. DASHBOARD STRUCTURAL LAYOUT
    ========================================================================== */
@@ -408,6 +409,7 @@ h1 {
     border-color: var(--text-muted);
     color: var(--text-muted);
     background: transparent;
+    pointer-events: none; /* Block click handlers entirely */
 }
 
 /* ==========================================================================
@@ -470,12 +472,18 @@ h1 {
 
 /* Active State Styles (When a toggle parameter is turned ON) */
 .matrix-btn.active-state {
-    background: rgba(0, 242, 254, 0.15);
-    border-color: var(--primary-glow);
-    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
-}
-.matrix-btn.active-state i {
-    color: var(--primary-glow);
-    text-shadow: 0 0 8px var(--primary-glow);
+    background: rgba(0, 242, 254, 0.15) !important;
+    border-color: var(--primary-glow) !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important;
 }
 
+.matrix-btn.active-state i {
+    color: var(--primary-glow) !important;
+    text-shadow: 0 0 8px var(--primary-glow) !important;
+}
+
+/* Custom active overlay for the Emergency Lock button when engaged */
+.matrix-btn.alert-action.active-state {
+    background: rgba(255, 0, 85, 0.2) !important;
+    border-color: var(--error-neon) !important;
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4)
