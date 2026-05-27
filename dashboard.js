@@ -31,7 +31,7 @@ onAuthStateChanged(auth, (user) => {
         initializeCommandStateListeners(user.uid);
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
-        window.location.href = "./index.html"; // Fixed relative routing path for GitHub Pages
+        window.location.href = "./index.html";
     }
 });
 
@@ -39,7 +39,7 @@ onAuthStateChanged(auth, (user) => {
 btnLogout.addEventListener("click", () => {
     signOut(auth)
         .then(() => {
-            window.location.href = "./index.html"; // Fixed relative routing path for GitHub Pages
+            window.location.href = "./index.html";
         })
         .catch((error) => console.error("Disconnect failure:", error));
 });
@@ -54,28 +54,34 @@ function initializeTelemetryStream(uid) {
         const data = snapshot.val();
         if (!data) {
             console.log("No telemetry received yet. Device pending connection...");
+            batteryText.innerText = "--%";
+            networkText.innerText = "UNKNOWN";
             return;
         }
 
-        // Update Battery Level Metrics
+        // Update Battery Level Metrics (Expects 'batteryPercentage' from Android)
         if (data.batteryPercentage !== undefined) {
             batteryText.innerText = `${data.batteryPercentage}%`;
+        } else {
+            batteryText.innerText = "--%";
         }
 
-        // Update Network Architecture Info
+        // Update Network Architecture Info (Expects 'networkType' from Android)
         if (data.networkType) {
             networkText.innerText = data.networkType.toUpperCase();
+        } else {
+            networkText.innerText = "UNKNOWN";
         }
 
-        // Update Global Positioning Telemetry
+        // Update Global Positioning Telemetry (Expects 'latitude' & 'longitude')
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Clean string interpolation for working worldwide Google Maps search layout
-            mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
+            // FIXED: Valid global coordinates query URL for standard browsers
+            mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
-            gpsText.innerText = "GPS Coordinates Inactive";
+            gpsText.innerText = "Waiting for coordinates...";
             mapLink.classList.add("disabled");
             mapLink.removeAttribute("href");
         }
@@ -89,7 +95,7 @@ function initializeTelemetryStream(uid) {
         } else {
             deviceStateText.innerText = "SECURE";
             deviceStateText.className = "metric-value status-secure";
-            deviceStateText.style.color = ""; // Falls back to your CSS rules
+            deviceStateText.style.color = ""; 
             deviceStateText.style.textShadow = "";
         }
     });
@@ -101,7 +107,6 @@ function initializeTelemetryStream(uid) {
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
 
-    // Listen to current state changes to highlight your UI buttons if turned on elsewhere
     onValue(commandsRef, (snapshot) => {
         const commands = snapshot.val() || {};
 
@@ -150,7 +155,6 @@ cmdCapture.addEventListener("click", () => {
     alert("Camera snapshot frame request transmitted to mobile node.");
 });
 
-// Primary writer utility execution core
 function sendRemoteCommand(commandName, targetValue) {
     if (!currentUserUid) return;
     const commandNodeRef = ref(database, `devices/${currentUserUid}/commands/${commandName}`);
