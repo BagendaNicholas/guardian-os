@@ -18,33 +18,28 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// OPTION 2: Put the UID of the secondary device you want to target here!
-// Your primary dashboard account is BIHVHMaIzMYkq4r5g5Fw9vnwlmj2.
-// Change this string to "6dGvVsLXCYePuqRZVat2sc6ytG3" when testing the secondary phone.
+// TARGET CONFIGURATION: Points the matrix UI cleanly to the secondary phone's hardware node
 let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
 
 // ==========================================================================
 // 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
 // ==========================================================================
-// Authoritative operator account allowed to access the hardware matrix
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com"; 
 
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // Enforce strict account verification check
         if (user.email && user.email.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
             currentUserUid = user.uid;
             console.log("Secure terminal linked. Operator UID:", currentUserUid);
             console.log("Targeting device node UID:", targetDeviceUid);
             
-            // DYNAMICALLY initialize feeds using the targeted device's UID
+            // Fire up active telemetry feeds using targeted device ID context
             initializeTelemetryStream(targetDeviceUid);
             initializeCommandStateListeners(targetDeviceUid);
         } else {
             console.warn("Unauthorized operator profile rejected. Intercepting...");
             alert("Access Denied: This profile is unauthorized to issue command responses.");
             
-            // Wipe token context immediately and bounce back to index
             signOut(auth).then(() => {
                 window.location.href = "./index.html";
             });
@@ -99,7 +94,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Fixed template literal syntax error and pointed to standard clear maps URL
+            // FIXED: Fixed broken syntax to output a clean standard Google Maps coordinate string
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
@@ -108,7 +103,7 @@ function initializeTelemetryStream(uid) {
             mapLink.removeAttribute("href");
         }
 
-        // REALTIME IMAGE DOWNLOAD OVERRIDE (Handles raw Base64 data chunks from Database)
+        // REALTIME IMAGE DOWNLOAD OVERRIDE
         const imageElement = document.getElementById('cameraPreviewFrame');
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
@@ -117,8 +112,6 @@ function initializeTelemetryStream(uid) {
             if (data.lastPhotoUrl && data.lastPhotoUrl.trim() !== "") {
                 placeholderText.style.display = "none";
                 imageElement.style.display = "block";
-                
-                // The element receives the "data:image/jpeg;base64,..." string directly from RTDB
                 imageElement.src = data.lastPhotoUrl;
                 
                 if (timestampElement) {
@@ -126,7 +119,6 @@ function initializeTelemetryStream(uid) {
                     timestampElement.innerText = `LAST UPDATED: TODAY AT ${currentTime}`;
                 }
             } else {
-                // Keep showing the terminal scanning ring if node is empty
                 imageElement.style.display = "none";
                 placeholderText.style.display = "flex";
             }
@@ -160,7 +152,6 @@ function initializeCommandStateListeners(uid) {
         toggleButtonVisualState(cmdAlarm, commands.alarm);
         toggleButtonVisualState(cmdLock, commands.emergencyLock);
         
-        // Handle Camera Capture button UI state
         if (commands.cameraCapture) {
             cmdCapture.classList.add("active-state");
             cmdCapture.querySelector('span').innerText = "CAPTURING...";
@@ -181,7 +172,6 @@ function toggleButtonVisualState(buttonElement, isActive) {
     }
 }
 
-// Fire Database Event Adjustments on interaction clicks
 cmdFlashlight.addEventListener("click", () => {
     const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
     sendRemoteCommand("flashlight", !isCurrentlyActive);
@@ -198,7 +188,6 @@ cmdLock.addEventListener("click", () => {
     if (confirmLock) {
         const targetState = !isCurrentlyActive;
         const updates = {};
-        // TARGETING OVERRIDE: Modify commands on the target device tree branch
         updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
         updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
         update(ref(database), updates);
@@ -206,7 +195,6 @@ cmdLock.addEventListener("click", () => {
 });
 
 cmdCapture.addEventListener("click", () => {
-    // Show spinner box elements immediately on click to indicate response transmission
     const imageElement = document.getElementById('cameraPreviewFrame');
     const placeholderText = document.getElementById('cameraPlaceholderText');
     if (imageElement && placeholderText) {
@@ -219,7 +207,6 @@ cmdCapture.addEventListener("click", () => {
 
 function sendRemoteCommand(commandName, targetValue) {
     if (!currentUserUid || !targetDeviceUid) return;
-    // TARGETING OVERRIDE: Send commands to targetDeviceUid instead of user session profile path
     const commandNodeRef = ref(database, `devices/${targetDeviceUid}/commands/${commandName}`);
     set(commandNodeRef, targetValue)
         .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
