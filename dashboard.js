@@ -18,37 +18,17 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// OPTION 2: Put the UID of the secondary device you want to target here!
-// Your primary dashboard account is BIHVHMaIzMYkq4r5g5Fw9vnwlmj2.
-// Change this string to "6dGvVsLXCYePuqRZVat2sc6ytG3" when testing the secondary phone.
-let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
-
 // ==========================================================================
-// 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
+// 1. SESSION SECURE PROTECTIONS
 // ==========================================================================
-// Authoritative operator account allowed to access the hardware matrix
-const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com"; 
-
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        // Enforce strict account verification check
-        if (user.email && user.email.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
-            currentUserUid = user.uid;
-            console.log("Secure terminal linked. Operator UID:", currentUserUid);
-            console.log("Targeting device node UID:", targetDeviceUid);
-            
-            // DYNAMICALLY initialize feeds using the targeted device's UID
-            initializeTelemetryStream(targetDeviceUid);
-            initializeCommandStateListeners(targetDeviceUid);
-        } else {
-            console.warn("Unauthorized operator profile rejected. Intercepting...");
-            alert("Access Denied: This profile is unauthorized to issue command responses.");
-            
-            // Wipe token context immediately and bounce back to index
-            signOut(auth).then(() => {
-                window.location.href = "./index.html";
-            });
-        }
+        currentUserUid = user.uid;
+        console.log("Secure terminal linked. Operator UID:", currentUserUid);
+        
+        // Begin sync feeds
+        initializeTelemetryStream(user.uid);
+        initializeCommandStateListeners(user.uid);
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
         window.location.href = "./index.html";
@@ -56,15 +36,13 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // Logout Operator System Account
-if (btnLogout) {
-    btnLogout.addEventListener("click", () => {
-        signOut(auth)
-            .then(() => {
-                window.location.href = "./index.html";
-            })
-            .catch((error) => console.error("Disconnect failure:", error));
-    });
-}
+btnLogout.addEventListener("click", () => {
+    signOut(auth)
+        .then(() => {
+            window.location.href = "./index.html";
+        })
+        .catch((error) => console.error("Disconnect failure:", error));
+});
 
 // ==========================================================================
 // 2. REAL-TIME DATA STREAM SYNCHRONIZATION (Phone -> Web)
@@ -99,7 +77,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Fixed template literal syntax error and pointed to standard clear maps URL
+            // FIXED: Pointed link to official Google Maps URL with correct template syntax
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
@@ -198,9 +176,8 @@ cmdLock.addEventListener("click", () => {
     if (confirmLock) {
         const targetState = !isCurrentlyActive;
         const updates = {};
-        // TARGETING OVERRIDE: Modify commands on the target device tree branch
-        updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
-        updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
+        updates[`devices/${currentUserUid}/commands/emergencyLock`] = targetState;
+        updates[`devices/${currentUserUid}/status/isDeviceLocked`] = targetState;
         update(ref(database), updates);
     }
 });
@@ -218,9 +195,8 @@ cmdCapture.addEventListener("click", () => {
 });
 
 function sendRemoteCommand(commandName, targetValue) {
-    if (!currentUserUid || !targetDeviceUid) return;
-    // TARGETING OVERRIDE: Send commands to targetDeviceUid instead of user session profile path
-    const commandNodeRef = ref(database, `devices/${targetDeviceUid}/commands/${commandName}`);
+    if (!currentUserUid) return;
+    const commandNodeRef = ref(database, `devices/${currentUserUid}/commands/${commandName}`);
     set(commandNodeRef, targetValue)
         .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
 }
