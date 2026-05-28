@@ -77,7 +77,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Cleared syntax bug and pointed link parameters to standard web coordinates schema
+            // FIXED: Pointed link to official Google Maps URL paradigm with correct template string syntax
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
@@ -91,8 +91,8 @@ function initializeTelemetryStream(uid) {
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
         
-        // Ensure UI components exist in your HTML before attempting data rendering mutations
         if (imageElement && placeholderText) {
+            // NOTE: Double check your Android code writes to 'lastPhotoUrl' inside the status node!
             if (data.lastPhotoUrl && data.lastPhotoUrl.trim() !== "") {
                 placeholderText.style.display = "none";
                 imageElement.style.display = "block";
@@ -100,12 +100,12 @@ function initializeTelemetryStream(uid) {
                 
                 if (timestampElement) {
                     const currentTime = new Date().toLocaleTimeString();
-                    timestampElement.innerText = `Last updated: Today at ${currentTime}`;
+                    timestampElement.innerText = `LAST UPDATED: TODAY AT ${currentTime}`;
                 }
             } else {
+                // If data isn't ready or link is empty, keep running loading ring interface
                 imageElement.style.display = "none";
-                placeholderText.style.display = "block";
-                if (timestampElement) timestampElement.innerText = "Last updated: Never";
+                placeholderText.style.display = "flex";
             }
         }
 
@@ -136,7 +136,16 @@ function initializeCommandStateListeners(uid) {
         toggleButtonVisualState(cmdFlashlight, commands.flashlight);
         toggleButtonVisualState(cmdAlarm, commands.alarm);
         toggleButtonVisualState(cmdLock, commands.emergencyLock);
-        toggleButtonVisualState(cmdCapture, commands.cameraCapture);
+        
+        // Handle Camera Capture button UI state
+        if (commands.cameraCapture) {
+            cmdCapture.classList.add("active-state");
+            // Show loading indicator on button text during execution transit
+            cmdCapture.querySelector('span').innerText = "CAPTURING...";
+        } else {
+            cmdCapture.classList.remove("active-state");
+            cmdCapture.querySelector('span').innerText = "CAMERA CAPTURE";
+        }
     });
 }
 
@@ -174,8 +183,15 @@ cmdLock.addEventListener("click", () => {
 });
 
 cmdCapture.addEventListener("click", () => {
+    // Show spinner box elements immediately on click to indicate response transmission
+    const imageElement = document.getElementById('cameraPreviewFrame');
+    const placeholderText = document.getElementById('cameraPlaceholderText');
+    if (imageElement && placeholderText) {
+        imageElement.style.display = "none";
+        placeholderText.style.display = "flex";
+    }
+
     sendRemoteCommand("cameraCapture", true);
-    alert("Camera snapshot frame request transmitted to mobile node.");
 });
 
 function sendRemoteCommand(commandName, targetValue) {
