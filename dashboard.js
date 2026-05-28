@@ -59,25 +59,25 @@ function initializeTelemetryStream(uid) {
             return;
         }
 
-        // Update Battery Level Metrics (Expects 'batteryPercentage' from Android)
+        // Update Battery Level Metrics
         if (data.batteryPercentage !== undefined) {
             batteryText.innerText = `${data.batteryPercentage}%`;
         } else {
             batteryText.innerText = "--%";
         }
 
-        // Update Network Architecture Info (Expects 'networkType' from Android)
+        // Update Network Architecture Info
         if (data.networkType) {
             networkText.innerText = data.networkType.toUpperCase();
         } else {
             networkText.innerText = "UNKNOWN";
         }
 
-        // Update Global Positioning Telemetry (Expects 'latitude' & 'longitude')
+        // Update Global Positioning Telemetry
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Pointed link to official Google Maps URL paradigm with correct template string syntax
+            // FIXED: Pointed link to official Google Maps URL with correct template syntax
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
@@ -86,16 +86,17 @@ function initializeTelemetryStream(uid) {
             mapLink.removeAttribute("href");
         }
 
-        // FIXED: Intercept incoming background camera snapshot links from Firebase Storage
+        // REALTIME IMAGE DOWNLOAD OVERRIDE (Handles raw Base64 data chunks from Database)
         const imageElement = document.getElementById('cameraPreviewFrame');
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
         
         if (imageElement && placeholderText) {
-            // NOTE: Double check your Android code writes to 'lastPhotoUrl' inside the status node!
             if (data.lastPhotoUrl && data.lastPhotoUrl.trim() !== "") {
                 placeholderText.style.display = "none";
                 imageElement.style.display = "block";
+                
+                // The element receives the "data:image/jpeg;base64,..." string directly from RTDB
                 imageElement.src = data.lastPhotoUrl;
                 
                 if (timestampElement) {
@@ -103,7 +104,7 @@ function initializeTelemetryStream(uid) {
                     timestampElement.innerText = `LAST UPDATED: TODAY AT ${currentTime}`;
                 }
             } else {
-                // If data isn't ready or link is empty, keep running loading ring interface
+                // Keep showing the terminal scanning ring if node is empty
                 imageElement.style.display = "none";
                 placeholderText.style.display = "flex";
             }
@@ -113,7 +114,7 @@ function initializeTelemetryStream(uid) {
         if (data.isDeviceLocked) {
             deviceStateText.innerText = "EMERGENCY LOCK";
             deviceStateText.className = "metric-value";
-            deviceStateText.style.color = "#ff0055"; // Bright alert neon magenta
+            deviceStateText.style.color = "#ff0055"; 
             deviceStateText.style.textShadow = "0 0 8px rgba(255, 0, 85, 0.5)";
         } else {
             deviceStateText.innerText = "SECURE";
@@ -140,7 +141,6 @@ function initializeCommandStateListeners(uid) {
         // Handle Camera Capture button UI state
         if (commands.cameraCapture) {
             cmdCapture.classList.add("active-state");
-            // Show loading indicator on button text during execution transit
             cmdCapture.querySelector('span').innerText = "CAPTURING...";
         } else {
             cmdCapture.classList.remove("active-state");
