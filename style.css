@@ -502,23 +502,65 @@ h1 {
 }
 
 /* ==========================================================================
-   10. ADDED: CAMERA PREVIEW FEED EFFECTS
+   10. CAMERA PREVIEW FEED EFFECTS & BOUNDARY CONSTRAINTS
    ========================================================================== */
-#cameraPreviewFrame {
+
+/* The structural bounding container card mask */
+.camera-monitor-wrapper {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 3 / 4; /* Standard portrait terminal crop framing ratio */
+    position: relative;
+    background: rgba(6, 9, 19, 0.8);
     border: 1px solid rgba(0, 242, 254, 0.15);
+    border-radius: 6px;
+    overflow: hidden; /* Cleans up all clipping edge overflows */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Fixed Image Element Canvas Transformations */
+#cameraPreviewFrame {
+    position: absolute;
+    /* We swap height and width rules to accommodate the visual rotation matrix */
+    width: auto;
+    height: 100%;
+    min-width: 100%;
+    object-fit: cover;
+    
+    /* Rotate counter-clockwise and keep the element centered perfectly */
+    transform: rotate(-90deg);
+    transform-origin: center center;
+    
     animation: monitor-flicker 4s infinite;
+}
+
+/* Custom Text Layout styling for the console status placeholder */
+.placeholder-text {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-align: center;
+    padding: 20px;
+}
+
+.timestamp-text {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-family: 'Orbitron', sans-serif;
+    text-align: right;
 }
 
 @keyframes monitor-flicker {
     0% { opacity: 0.98; filter: brightness(1); }
-    50% { opacity: 1; filter: brightness(1.05); }
-    51% { opacity: 0.97; filter: brightness(0.98); }
+    50% { opacity: 1; filter: brightness(1.03); }
+    51% { opacity: 0.97; filter: brightness(0.97); }
     100% { opacity: 0.99; filter: brightness(1); }
 }
-#cameraPreviewFrame {
-    width: 100%;
-    height: auto;
-    object-fit: cover;
-    transform: rotate(-90deg); /* Rotates the landscape sensor frame to portrait */
-}
-
