@@ -515,3 +515,10 @@ h1 {
     51% { opacity: 0.97; filter: brightness(0.98); }
     100% { opacity: 0.99; filter: brightness(1); }
 }
+#cameraPreviewFrame {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    transform: rotate(-90deg); /* Rotates the landscape sensor frame to portrait */
+}
+
