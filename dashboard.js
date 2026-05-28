@@ -1,4 +1,4 @@
-Import { auth, database } from "./firebase.js";
+import { auth, database } from "./firebase.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -18,8 +18,8 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// TARGET CONFIGURATION: Points to the active phone hardware node found in your Firebase tree
-let targetDeviceUid = "BIHVHMaIzMYkq4r5g5Fw9vnwlmj2"; 
+// FIXED: Adjusted to reference your exact structural folder node shown in your console snapshot
+let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
 
 // ==========================================================================
 // 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
@@ -94,7 +94,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Standard syntax fix to correctly pass dynamic coordinates to Google Maps
+            // FIXED: Cleaned up template literal variable injection to build a working map query link
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
