@@ -18,7 +18,7 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// FIXED: Adjusted to reference your exact structural folder node shown in your console snapshot
+// TARGET CONFIGURATION: Points to your active mobile hardware node folder precisely
 let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
 
 // ==========================================================================
@@ -71,36 +71,46 @@ function initializeTelemetryStream(uid) {
         const data = snapshot.val();
         if (!data) {
             console.log("No telemetry received yet. Device pending connection...");
-            batteryText.innerText = "--%";
-            networkText.innerText = "UNKNOWN";
+            if (batteryText) batteryText.innerText = "--%";
+            if (networkText) networkText.innerText = "UNKNOWN";
             return;
         }
 
         // Update Battery Level Metrics
-        if (data.batteryPercentage !== undefined) {
-            batteryText.innerText = `${data.batteryPercentage}%`;
-        } else {
-            batteryText.innerText = "--%";
+        if (batteryText) {
+            batteryText.innerText = data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
         }
 
         // Update Network Architecture Info
-        if (data.networkType) {
-            networkText.innerText = data.networkType.toUpperCase();
-        } else {
-            networkText.innerText = "UNKNOWN";
+        if (networkText) {
+            networkText.innerText = data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
         }
 
-        // Update Global Positioning Telemetry
-        if (data.latitude && data.longitude) {
-            gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
-            
-            // FIXED: Cleaned up template literal variable injection to build a working map query link
-            mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
-            mapLink.classList.remove("disabled");
-        } else {
-            gpsText.innerText = "Waiting for coordinates...";
-            mapLink.classList.add("disabled");
-            mapLink.removeAttribute("href");
+        // Update Global Positioning Telemetry Safely (Crash Resistant)
+        if (gpsText) {
+            if (data.latitude !== undefined && data.longitude !== undefined && data.latitude !== null && data.longitude !== null) {
+                const latNum = parseFloat(data.latitude);
+                const lngNum = parseFloat(data.longitude);
+
+                if (!isNaN(latNum) && !isNaN(lngNum)) {
+                    gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
+                    
+                    if (mapLink) {
+                        // FIXED: Re-engineered broken template literal context path to a valid global navigation search endpoint
+                        mapLink.href = `https://maps.google.com/?q=${latNum},${lngNum}`;
+                        mapLink.classList.remove("disabled");
+                    }
+                } else {
+                    gpsText.innerText = "Telemetry Format Error";
+                    if (mapLink) mapLink.classList.add("disabled");
+                }
+            } else {
+                gpsText.innerText = "Waiting for coordinates...";
+                if (mapLink) {
+                    mapLink.classList.add("disabled");
+                    mapLink.removeAttribute("href");
+                }
+            }
         }
 
         // REALTIME IMAGE DOWNLOAD OVERRIDE
@@ -125,16 +135,18 @@ function initializeTelemetryStream(uid) {
         }
 
         // Update Overall Security Device States
-        if (data.isDeviceLocked) {
-            deviceStateText.innerText = "EMERGENCY LOCK";
-            deviceStateText.className = "metric-value";
-            deviceStateText.style.color = "#ff0055"; 
-            deviceStateText.style.textShadow = "0 0 8px rgba(255, 0, 85, 0.5)";
-        } else {
-            deviceStateText.innerText = "SECURE";
-            deviceStateText.className = "metric-value status-secure";
-            deviceStateText.style.color = ""; 
-            deviceStateText.style.textShadow = "";
+        if (deviceStateText) {
+            if (data.isDeviceLocked) {
+                deviceStateText.innerText = "EMERGENCY LOCK";
+                deviceStateText.className = "metric-value";
+                deviceStateText.style.color = "#ff0055"; 
+                deviceStateText.style.textShadow = "0 0 8px rgba(255, 0, 85, 0.5)";
+            } else {
+                deviceStateText.innerText = "SECURE";
+                deviceStateText.className = "metric-value status-secure";
+                deviceStateText.style.color = ""; 
+                deviceStateText.style.textShadow = "";
+            }
         }
     });
 }
@@ -152,12 +164,15 @@ function initializeCommandStateListeners(uid) {
         toggleButtonVisualState(cmdAlarm, commands.alarm);
         toggleButtonVisualState(cmdLock, commands.emergencyLock);
         
-        if (commands.cameraCapture) {
-            cmdCapture.classList.add("active-state");
-            cmdCapture.querySelector('span').innerText = "CAPTURING...";
-        } else {
-            cmdCapture.classList.remove("active-state");
-            cmdCapture.querySelector('span').innerText = "CAMERA CAPTURE";
+        if (cmdCapture) {
+            const label = cmdCapture.querySelector('span');
+            if (commands.cameraCapture) {
+                cmdCapture.classList.add("active-state");
+                if (label) label.innerText = "CAPTURING...";
+            } else {
+                cmdCapture.classList.remove("active-state");
+                if (label) label.innerText = "CAMERA CAPTURE";
+            }
         }
     });
 }
@@ -172,38 +187,46 @@ function toggleButtonVisualState(buttonElement, isActive) {
     }
 }
 
-cmdFlashlight.addEventListener("click", () => {
-    const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
-    sendRemoteCommand("flashlight", !isCurrentlyActive);
-});
+if (cmdFlashlight) {
+    cmdFlashlight.addEventListener("click", () => {
+        const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
+        sendRemoteCommand("flashlight", !isCurrentlyActive);
+    });
+}
 
-cmdAlarm.addEventListener("click", () => {
-    const isCurrentlyActive = cmdAlarm.classList.contains("active-state");
-    sendRemoteCommand("alarm", !isCurrentlyActive);
-});
+if (cmdAlarm) {
+    cmdAlarm.addEventListener("click", () => {
+        const isCurrentlyActive = cmdAlarm.classList.contains("active-state");
+        sendRemoteCommand("alarm", !isCurrentlyActive);
+    });
+}
 
-cmdLock.addEventListener("click", () => {
-    const isCurrentlyActive = cmdLock.classList.contains("active-state");
-    const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
-    if (confirmLock) {
-        const targetState = !isCurrentlyActive;
-        const updates = {};
-        updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
-        updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
-        update(ref(database), updates);
-    }
-});
+if (cmdLock) {
+    cmdLock.addEventListener("click", () => {
+        const isCurrentlyActive = cmdLock.classList.contains("active-state");
+        const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
+        if (confirmLock) {
+            const targetState = !isCurrentlyActive;
+            const updates = {};
+            updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
+            updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
+            update(ref(database), updates);
+        }
+    });
+}
 
-cmdCapture.addEventListener("click", () => {
-    const imageElement = document.getElementById('cameraPreviewFrame');
-    const placeholderText = document.getElementById('cameraPlaceholderText');
-    if (imageElement && placeholderText) {
-        imageElement.style.display = "none";
-        placeholderText.style.display = "flex";
-    }
+if (cmdCapture) {
+    cmdCapture.addEventListener("click", () => {
+        const imageElement = document.getElementById('cameraPreviewFrame');
+        const placeholderText = document.getElementById('cameraPlaceholderText');
+        if (imageElement && placeholderText) {
+            imageElement.style.display = "none";
+            placeholderText.style.display = "flex";
+        }
 
-    sendRemoteCommand("cameraCapture", true);
-});
+        sendRemoteCommand("cameraCapture", true);
+    });
+}
 
 function sendRemoteCommand(commandName, targetValue) {
     if (!currentUserUid || !targetDeviceUid) return;
