@@ -1,30 +1,14 @@
-// 1. Import your Firebase Modular SDK bundles
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+// 1. Import Auth methods from the web SDK and instances from your shared file
+import { auth } from "./firebase.js";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// 2. Your Exact Firebase Configuration Project Core
-const firebaseConfig = {
-    apiKey: "AIzaSyBhaPM20tIhMalxLjoCklmwy4qb1ZkraSo",
-    authDomain: "guardianos-30b18.firebaseapp.com",
-    projectId: "guardianos-30b18",
-    storageBucket: "guardianos-30b18.appspot.com",
-    messagingSenderId: "323558398331",
-    appId: "1:323558398331:android:a022a1e38b48a0247705de",
-    databaseURL: "https://guardianos-30b18-default-rtdb.europe-west1.firebasedatabase.app"
-};
-
-// Initialize Firebase Core and Auth Service
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-// 3. Document Element Mappings
+// 2. Document Element Mappings
 const authForm = document.getElementById("auth-form");
 const emailInput = document.getElementById("email");
 const passwordInput = document.getElementById("password");
 const errorMessage = document.getElementById("error-message");
 const errorText = document.getElementById("error-text");
 const submitBtn = document.getElementById("btn-login");
-const toggleAuthLink = document.getElementById("toggle-auth-link");
 const toggleAuthText = document.getElementById("toggle-auth-text");
 
 let isLoginMode = true; // Flips between Sign In and Sign Up
@@ -40,8 +24,8 @@ function hideError() {
     errorMessage.classList.add("hidden");
 }
 
-// --- Toggle between Login and Registration Modes ---
-toggleAuthLink.addEventListener("click", (e) => {
+// --- Toggle between Login and Registration Modes Fix ---
+function handleToggle(e) {
     e.preventDefault();
     hideError();
     isLoginMode = !isLoginMode;
@@ -54,9 +38,12 @@ toggleAuthLink.addEventListener("click", (e) => {
         toggleAuthText.innerHTML = 'Existing node? <a href="#" id="toggle-auth-link">Return to Uplink</a>';
     }
     
-    // Re-bind the click listener since innerHTML wipes previous assignments
-    document.getElementById("toggle-auth-link").addEventListener("click", arguments.callee);
-});
+    // Safely re-bind to the freshly injected dynamic innerHTML anchor tag
+    document.getElementById("toggle-auth-link").addEventListener("click", handleToggle);
+}
+
+// Attach initial listener to the static HTML anchor
+document.getElementById("toggle-auth-link").addEventListener("click", handleToggle);
 
 // --- Handle Authentication Actions ---
 authForm.addEventListener("submit", (e) => {
@@ -74,28 +61,29 @@ authForm.addEventListener("submit", (e) => {
         // --- LOGGING IN AS MASTER ADMIN OPERATOR ---
         signInWithEmailAndPassword(auth, email, password)
             .then((userCredential) => {
-                const user = userCredential.user;
-                console.log("Operator successfully authenticated:", user.email);
-                
-                // Route directly to your primary control dashboard
-                window.location.href = "dashboard.html"; 
+                console.log("Operator successfully authenticated:", userCredential.user.email);
+                // Redirect directly to your dashboard control page
+                window.location.href = "./dashboard.html"; 
             })
             .catch((error) => {
                 console.error("Auth Failure Code:", error.code);
                 let clearMessage = "Uplink Denied: Invalid Operator Credentials";
-                if (error.code === "auth/user-not-found") clearMessage = "Operator ID not found in security directory.";
-                if (error.code === "auth/wrong-password") clearMessage = "Invalid master encryption access key.";
+                if (error.code === "auth/invalid-credential" || error.code === "auth/wrong-password" || error.code === "auth/user-not-found") {
+                    clearMessage = "Invalid master encryption access key or operator ID.";
+                }
                 
                 showError(clearMessage);
                 document.querySelector(".btn-text").innerText = "INITIALIZE LINK";
             });
     } else {
-        // --- CREATING NEW ACCOUNTS (Like your hardware device account) ---
+        // --- CREATING NEW ACCOUNTS ---
         createUserWithEmailAndPassword(auth, email, password)
             .then((userCredential) => {
-                alert("Account Registration Confirmed! Note the user ID string from your console.");
+                alert("Account Registration Confirmed! You can now log into your console.");
                 isLoginMode = true;
                 document.querySelector(".btn-text").innerText = "INITIALIZE LINK";
+                toggleAuthText.innerHTML = 'New system node? <a href="#" id="toggle-auth-link">Register Terminal</a>';
+                document.getElementById("toggle-auth-link").addEventListener("click", handleToggle);
                 submitBtn.removeAttribute("disabled");
             })
             .catch((error) => {
@@ -107,8 +95,8 @@ authForm.addEventListener("submit", (e) => {
 
 // --- Active Session Persistent Loop Back ---
 onAuthStateChanged(auth, (user) => {
-    if (user && window.location.pathname.includes("index.html")) {
-        // If an administrator is already logged in on this browser session, advance straight to dashboard
-        window.location.href = "dashboard.html";
+    // If an administrator is already logged in, skip login page and move directly to controls
+    if (user && (window.location.pathname.endsWith("index.html") || window.location.pathname === "/" || window.location.pathname.endsWith("index.html/"))) {
+        window.location.href = "./dashboard.html";
     }
 });
