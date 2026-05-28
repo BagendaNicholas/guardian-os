@@ -19,30 +19,36 @@ const cmdCapture = document.getElementById("cmd-capture");
 let currentUserUid = null;
 
 // ==========================================================================
-// 1. SESSION SECURE PROTECTIONS
+// 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
 // ==========================================================================
+// Authoritative operator account allowed to access the hardware matrix
+const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com"; 
+
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        currentUserUid = user.uid;
-        console.log("Secure terminal linked. Operator UID:", currentUserUid);
-        
-        // Begin sync feeds
-        initializeTelemetryStream(user.uid);
-        initializeCommandStateListeners(user.uid);
+        // Enforce strict account verification check
+        if (user.email && user.email.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
+            currentUserUid = user.uid;
+            console.log("Secure terminal linked. Operator UID:", currentUserUid);
+            
+            // DYNAMICALLY initialize feeds using the logged-in user's true UID
+            initializeTelemetryStream(currentUserUid);
+            initializeCommandStateListeners(currentUserUid);
+        } else {
+            console.warn("Unauthorized operator profile rejected. Intercepting...");
+            alert("Access Denied: This profile is unauthorized to issue command responses.");
+            
+            // Wipe token context immediately and bounce back to index
+            signOut(auth).then(() => {
+                window.location.href = "./index.html";
+            });
+        }
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
         window.location.href = "./index.html";
     }
 });
 
-// Logout Operator System Account
-btnLogout.addEventListener("click", () => {
-    signOut(auth)
-        .then(() => {
-            window.location.href = "./index.html";
-        })
-        .catch((error) => console.error("Disconnect failure:", error));
-});
 
 // ==========================================================================
 // 2. REAL-TIME DATA STREAM SYNCHRONIZATION (Phone -> Web)
@@ -77,7 +83,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Pointed link to official Google Maps URL with correct template syntax
+            // FIXED: Pointed link to official Google Maps URL with proper template expression string variables
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
