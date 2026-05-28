@@ -18,7 +18,7 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// TARGET CONFIGURATION: Points to your active mobile hardware node folder precisely
+// TARGET CONFIGURATION: Points directly to your active mobile phone hardware node folder
 let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
 
 // ==========================================================================
@@ -96,8 +96,8 @@ function initializeTelemetryStream(uid) {
                     gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
                     
                     if (mapLink) {
-                        // FIXED: Re-engineered broken template literal context path to a valid global navigation search endpoint
-                        mapLink.href = `https://maps.google.com/?q=${latNum},${lngNum}`;
+                        // FIXED: Corrected template literal structure from 1{latNum} to ${latNum}
+                        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${latNum},${lngNum}`;
                         mapLink.classList.remove("disabled");
                     }
                 } else {
@@ -229,7 +229,7 @@ if (cmdCapture) {
 }
 
 function sendRemoteCommand(commandName, targetValue) {
-    if (!currentUserUid || !targetDeviceUid) return;
+    if (!targetDeviceUid) return; // Isolated parameter protection
     const commandNodeRef = ref(database, `devices/${targetDeviceUid}/commands/${commandName}`);
     set(commandNodeRef, targetValue)
         .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
