@@ -18,8 +18,8 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
-// TARGET CONFIGURATION: Points the matrix UI cleanly to the secondary phone's hardware node
-let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
+// TARGET CONFIGURATION: Points to the active phone hardware node found in your Firebase tree
+let targetDeviceUid = "BIHVHMaIzMYkq4r5g5Fw9vnwlmj2"; 
 
 // ==========================================================================
 // 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
@@ -94,7 +94,7 @@ function initializeTelemetryStream(uid) {
         if (data.latitude && data.longitude) {
             gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
             
-            // FIXED: Standard clear template literal evaluation for map mapping strings
+            // FIXED: Standard syntax fix to correctly pass dynamic coordinates to Google Maps
             mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
             mapLink.classList.remove("disabled");
         } else {
