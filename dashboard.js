@@ -96,8 +96,8 @@ function initializeTelemetryStream(uid) {
                     gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
                     
                     if (mapLink) {
-                        // FIXED: Replaced legacy broken URL template layout with native Google Maps routing protocol link
-                        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${latNum},${lngNum}`;
+                        // FIXED: Corrected template literal from 0{latNum} to ${latNum}
+                        mapLink.href = `https://www.google.com/maps?q=${latNum},${lngNum}`;
                         mapLink.classList.remove("disabled");
                     }
                 } else {
@@ -228,13 +228,11 @@ if (cmdCapture) {
     });
 }
 
-// FIXED: Converted from broken modular single primitive payload set() to dynamic map update execution context
 function sendRemoteCommand(commandName, targetValue) {
     if (!targetDeviceUid) return; 
     
     const targetFolderRef = ref(database, `devices/${targetDeviceUid}/commands`);
     
-    // Create modern modular object tracking key injection map layer safely
     const dynamicCommandPayload = {};
     dynamicCommandPayload[commandName] = targetValue;
     
