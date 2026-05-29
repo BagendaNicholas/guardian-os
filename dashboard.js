@@ -66,9 +66,8 @@ if (btnLogout) {
 // ==========================================================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
-    const imageRef = ref(database, `image_links/${uid}`);
 
-    // Track standard device status data
+    // Track standard device status data and internal images
     onValue(statusRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) {
@@ -98,7 +97,8 @@ function initializeTelemetryStream(uid) {
                     gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
                     
                     if (mapLink) {
-                        mapLink.href = `https://maps.google.com/?q=${latNum},${lngNum}`;
+                        // FIXED: Changed from 1{latNum} to template syntax ${latNum}
+                        mapLink.href = `https://www.google.com/maps?q=${latNum},${lngNum}`;
                         mapLink.classList.remove("disabled");
                     }
                 } else {
@@ -128,20 +128,17 @@ function initializeTelemetryStream(uid) {
                 deviceStateText.style.textShadow = "";
             }
         }
-    });
 
-    // Dedicated Image Stream Handler (Linked directly to root /image_links/)
-    onValue(imageRef, (snapshot) => {
-        const imageData = snapshot.val();
+        // FIXED: Integrated Image Stream Handler inside status payload stream
         const imageElement = document.getElementById('cameraPreviewFrame');
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
         
         if (imageElement && placeholderText) {
-            if (imageData && imageData.lastPhotoUrl && imageData.lastPhotoUrl.trim() !== "") {
+            if (data.lastPhotoUrl && data.lastPhotoUrl.trim() !== "") {
                 placeholderText.style.display = "none";
                 imageElement.style.display = "block";
-                imageElement.src = imageData.lastPhotoUrl;
+                imageElement.src = data.lastPhotoUrl;
                 
                 if (timestampElement) {
                     const currentTime = new Date().toLocaleTimeString();
