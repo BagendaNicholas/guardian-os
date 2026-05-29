@@ -1,6 +1,6 @@
 import { auth, database } from "./firebase.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, onValue, set, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // DOM Elements - Telemetry Display Nodes
 const batteryText = document.getElementById("battery-text");
@@ -96,7 +96,7 @@ function initializeTelemetryStream(uid) {
                     gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
                     
                     if (mapLink) {
-                        // FIXED: Corrected template literal structure from 1{latNum} to ${latNum}
+                        // FIXED: Replaced legacy broken URL template layout with native Google Maps routing protocol link
                         mapLink.href = `https://www.google.com/maps/search/?api=1&query=${latNum},${lngNum}`;
                         mapLink.classList.remove("disabled");
                     }
@@ -228,9 +228,21 @@ if (cmdCapture) {
     });
 }
 
+// FIXED: Converted from broken modular single primitive payload set() to dynamic map update execution context
 function sendRemoteCommand(commandName, targetValue) {
-    if (!targetDeviceUid) return; // Isolated parameter protection
-    const commandNodeRef = ref(database, `devices/${targetDeviceUid}/commands/${commandName}`);
-    set(commandNodeRef, targetValue)
+    if (!targetDeviceUid) return; 
+    
+    const targetFolderRef = ref(database, `devices/${targetDeviceUid}/commands`);
+    
+    // Create modern modular object tracking key injection map layer safely
+    const dynamicCommandPayload = {};
+    dynamicCommandPayload[commandName] = targetValue;
+    
+    console.log(`Uplinking remote dashboard execution instruction [${commandName}]:`, targetValue);
+    
+    update(targetFolderRef, dynamicCommandPayload)
+        .then(() => {
+            console.log(`Database transaction confirmation received: [${commandName}] successfully synced.`);
+        })
         .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
 }
