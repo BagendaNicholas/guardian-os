@@ -18,29 +18,48 @@ const cmdCapture = document.getElementById("cmd-capture");
 
 let currentUserUid = null;
 
+// TARGET CONFIGURATION: Points directly to your active mobile phone hardware node folder
+let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
+
 // ==========================================================================
-// 1. SESSION SECURE PROTECTIONS
+// 1. SESSION SECURE PROTECTIONS (With Admin Email Control & Dynamic Sync)
 // ==========================================================================
+const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com"; 
+
 onAuthStateChanged(auth, (user) => {
     if (user) {
-        currentUserUid = user.uid;
-        console.log("Secure terminal linked. Operator UID:", currentUserUid);
-        
-        initializeTelemetryStream(user.uid);
-        initializeCommandStateListeners(user.uid);
+        if (user.email && user.email.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
+            currentUserUid = user.uid;
+            console.log("Secure terminal linked. Operator UID:", currentUserUid);
+            console.log("Targeting device node UID:", targetDeviceUid);
+            
+            // Fire up active telemetry feeds using targeted device ID context
+            initializeTelemetryStream(targetDeviceUid);
+            initializeCommandStateListeners(targetDeviceUid);
+        } else {
+            console.warn("Unauthorized operator profile rejected. Intercepting...");
+            alert("Access Denied: This profile is unauthorized to issue command responses.");
+            
+            signOut(auth).then(() => {
+                window.location.href = "./index.html";
+            });
+        }
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
         window.location.href = "./index.html";
     }
 });
 
-btnLogout.addEventListener("click", () => {
-    signOut(auth)
-        .then(() => {
-            window.location.href = "./index.html";
-        })
-        .catch((error) => console.error("Disconnect failure:", error));
-});
+// Logout Operator System Account
+if (btnLogout) {
+    btnLogout.addEventListener("click", () => {
+        signOut(auth)
+            .then(() => {
+                window.location.href = "./index.html";
+            })
+            .catch((error) => console.error("Disconnect failure:", error));
+    });
+}
 
 // ==========================================================================
 // 2. REAL-TIME DATA STREAM SYNCHRONIZATION (Phone -> Web)
@@ -52,37 +71,49 @@ function initializeTelemetryStream(uid) {
         const data = snapshot.val();
         if (!data) {
             console.log("No telemetry received yet. Device pending connection...");
-            batteryText.innerText = "--%";
-            networkText.innerText = "UNKNOWN";
+            if (batteryText) batteryText.innerText = "--%";
+            if (networkText) networkText.innerText = "UNKNOWN";
             return;
         }
 
-        // Update Battery Metrics
-        if (data.batteryPercentage !== undefined) {
-            batteryText.innerText = `${data.batteryPercentage}%`;
-        } else {
-            batteryText.innerText = "--%";
+        // Update Battery Level Metrics
+        if (batteryText) {
+            batteryText.innerText = data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
         }
 
-        // Update Network Metrics
-        if (data.networkType) {
-            networkText.innerText = data.networkType.toUpperCase();
-        } else {
-            networkText.innerText = "UNKNOWN";
+        // Update Network Architecture Info
+        if (networkText) {
+            networkText.innerText = data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
         }
 
-        // Update GPS Telemetry & Fix String Interpolation Syntax
-        if (data.latitude && data.longitude) {
-            gpsText.innerText = `${data.latitude.toFixed(5)}, ${data.longitude.toFixed(5)}`;
-            mapLink.href = `https://www.google.com/maps?q=${data.latitude},${data.longitude}`;
-            mapLink.classList.remove("disabled");
-        } else {
-            gpsText.innerText = "Waiting for coordinates...";
-            mapLink.classList.add("disabled");
-            mapLink.removeAttribute("href");
+        // Update Global Positioning Telemetry Safely (Crash Resistant)
+        if (gpsText) {
+            if (data.latitude !== undefined && data.longitude !== undefined && data.latitude !== null && data.longitude !== null) {
+                const latNum = parseFloat(data.latitude);
+                const lngNum = parseFloat(data.longitude);
+
+                if (!isNaN(latNum) && !isNaN(lngNum)) {
+                    gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
+                    
+                    if (mapLink) {
+                        // FIXED: Corrected template literal structure from 1{latNum} to ${latNum}
+                        mapLink.href = `https://www.google.com/maps/search/?api=1&query=${latNum},${lngNum}`;
+                        mapLink.classList.remove("disabled");
+                    }
+                } else {
+                    gpsText.innerText = "Telemetry Format Error";
+                    if (mapLink) mapLink.classList.add("disabled");
+                }
+            } else {
+                gpsText.innerText = "Waiting for coordinates...";
+                if (mapLink) {
+                    mapLink.classList.add("disabled");
+                    mapLink.removeAttribute("href");
+                }
+            }
         }
 
-        // Handle Image Frame Rendering Downlinks
+        // REALTIME IMAGE DOWNLOAD OVERRIDE
         const imageElement = document.getElementById('cameraPreviewFrame');
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
@@ -103,17 +134,19 @@ function initializeTelemetryStream(uid) {
             }
         }
 
-        // Update Security State UI Lookups
-        if (data.isDeviceLocked) {
-            deviceStateText.innerText = "EMERGENCY LOCK";
-            deviceStateText.className = "metric-value";
-            deviceStateText.style.color = "#ff0055"; 
-            deviceStateText.style.textShadow = "0 0 8px rgba(255, 0, 85, 0.5)";
-        } else {
-            deviceStateText.innerText = "SECURE";
-            deviceStateText.className = "metric-value status-secure";
-            deviceStateText.style.color = ""; 
-            deviceStateText.style.textShadow = "";
+        // Update Overall Security Device States
+        if (deviceStateText) {
+            if (data.isDeviceLocked) {
+                deviceStateText.innerText = "EMERGENCY LOCK";
+                deviceStateText.className = "metric-value";
+                deviceStateText.style.color = "#ff0055"; 
+                deviceStateText.style.textShadow = "0 0 8px rgba(255, 0, 85, 0.5)";
+            } else {
+                deviceStateText.innerText = "SECURE";
+                deviceStateText.className = "metric-value status-secure";
+                deviceStateText.style.color = ""; 
+                deviceStateText.style.textShadow = "";
+            }
         }
     });
 }
@@ -131,13 +164,15 @@ function initializeCommandStateListeners(uid) {
         toggleButtonVisualState(cmdAlarm, commands.alarm);
         toggleButtonVisualState(cmdLock, commands.emergencyLock);
         
-        // Dynamic Button Label Adjustments for Camera Pipeline Tracker
-        if (commands.cameraCapture) {
-            cmdCapture.classList.add("active-state");
-            cmdCapture.querySelector('span').innerText = "CAPTURING...";
-        } else {
-            cmdCapture.classList.remove("active-state");
-            cmdCapture.querySelector('span').innerText = "CAMERA CAPTURE";
+        if (cmdCapture) {
+            const label = cmdCapture.querySelector('span');
+            if (commands.cameraCapture) {
+                cmdCapture.classList.add("active-state");
+                if (label) label.innerText = "CAPTURING...";
+            } else {
+                cmdCapture.classList.remove("active-state");
+                if (label) label.innerText = "CAMERA CAPTURE";
+            }
         }
     });
 }
@@ -152,41 +187,50 @@ function toggleButtonVisualState(buttonElement, isActive) {
     }
 }
 
-cmdFlashlight.addEventListener("click", () => {
-    const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
-    sendRemoteCommand("flashlight", !isCurrentlyActive);
-});
+if (cmdFlashlight) {
+    cmdFlashlight.addEventListener("click", () => {
+        const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
+        sendRemoteCommand("flashlight", !isCurrentlyActive);
+    });
+}
 
-cmdAlarm.addEventListener("click", () => {
-    const isCurrentlyActive = cmdAlarm.classList.contains("active-state");
-    sendRemoteCommand("alarm", !isCurrentlyActive);
-});
+if (cmdAlarm) {
+    cmdAlarm.addEventListener("click", () => {
+        const isCurrentlyActive = cmdAlarm.classList.contains("active-state");
+        sendRemoteCommand("alarm", !isCurrentlyActive);
+    });
+}
 
-cmdLock.addEventListener("click", () => {
-    const isCurrentlyActive = cmdLock.classList.contains("active-state");
-    const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
-    if (confirmLock) {
-        const targetState = !isCurrentlyActive;
-        const updates = {};
-        updates[`devices/${currentUserUid}/commands/emergencyLock`] = targetState;
-        updates[`devices/${currentUserUid}/status/isDeviceLocked`] = targetState;
-        update(ref(database), updates);
-    }
-});
+if (cmdLock) {
+    cmdLock.addEventListener("click", () => {
+        const isCurrentlyActive = cmdLock.classList.contains("active-state");
+        const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
+        if (confirmLock) {
+            const targetState = !isCurrentlyActive;
+            const updates = {};
+            updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
+            updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
+            update(ref(database), updates);
+        }
+    });
+}
 
-cmdCapture.addEventListener("click", () => {
-    const imageElement = document.getElementById('cameraPreviewFrame');
-    const placeholderText = document.getElementById('cameraPlaceholderText');
-    if (imageElement && placeholderText) {
-        imageElement.style.display = "none";
-        placeholderText.style.display = "flex";
-    }
-    sendRemoteCommand("cameraCapture", true);
-});
+if (cmdCapture) {
+    cmdCapture.addEventListener("click", () => {
+        const imageElement = document.getElementById('cameraPreviewFrame');
+        const placeholderText = document.getElementById('cameraPlaceholderText');
+        if (imageElement && placeholderText) {
+            imageElement.style.display = "none";
+            placeholderText.style.display = "flex";
+        }
+
+        sendRemoteCommand("cameraCapture", true);
+    });
+}
 
 function sendRemoteCommand(commandName, targetValue) {
-    if (!currentUserUid) return;
-    const commandNodeRef = ref(database, `devices/${currentUserUid}/commands/${commandName}`);
+    if (!targetDeviceUid) return; // Isolated parameter protection
+    const commandNodeRef = ref(database, `devices/${targetDeviceUid}/commands/${commandName}`);
     set(commandNodeRef, targetValue)
-        .catch((error) => console.error(`Command transmission failure [${commandName}]:`, error));
+        .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
 }
