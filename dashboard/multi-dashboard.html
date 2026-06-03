@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianOS - Multi-Device Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./multi-style.css">
+</head>
+<body class="dashboard-body">
+
+    <div class="background-grid"></div>
+
+    <!-- HEADER -->
+    <header class="dashboard-header">
+        <div class="brand">
+            <i class="fa-solid fa-shield-halved tech-glow"></i>
+            <h2>GUARDIAN<span class="accent-text">OS</span> NEXUS</h2>
+        </div>
+        <div class="system-status-indicator">
+            <span class="pulse-dot"></span>
+            <span id="connection-status">LINK ESTABLISHED</span>
+        </div>
+        <button id="btn-logout" class="logout-btn"><i class="fa-solid fa-power-off"></i> DISCONNECT</button>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- DEVICES SIDEBAR -->
+        <aside class="devices-sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fa-solid fa-mobile-screen-button"></i> CONNECTED DEVICES</h3>
+                <span id="device-count" class="device-badge">0</span>
+            </div>
+            
+            <div id="devices-list" class="devices-list">
+                <!-- Device items will be dynamically inserted here -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="btn-refresh-devices" class="sidebar-action-btn">
+                    <i class="fa-solid fa-arrows-rotate"></i> Refresh Devices
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN DASHBOARD -->
+        <main class="dashboard-main">
+            <!-- Device Not Selected Alert -->
+            <div id="no-device-alert" class="alert-container" style="display: flex;">
+                <div class="alert-message">
+                    <i class="fa-solid fa-exclamation-triangle"></i>
+                    <h3>No Device Selected</h3>
+                    <p>Select a device from the left sidebar to view its status and control it.</p>
+                </div>
+            </div>
+
+            <!-- Device Dashboard (Hidden initially) -->
+            <div id="device-dashboard" class="device-dashboard" style="display: none;">
+                
+                <div class="device-name-bar">
+                    <h2 id="selected-device-name">Device</h2>
+                    <span id="device-online-status" class="online-indicator"><span class="pulse-dot-small"></span> ONLINE</span>
+                </div>
+
+                <div class="dashboard-grid-container">
+
+                    <!-- SYSTEM METRICS -->
+                    <section class="crypto-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-microchip"></i> SYSTEM METRICS</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-battery-three-quarters"></i> BATTERY LEVEL</span>
+                                <span id="battery-text" class="metric-value">--%</span>
+                                <div id="battery-bar" class="battery-bar"></div>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-wifi"></i> NETWORK PROTOCOL</span>
+                                <span id="network-text" class="metric-value">UNKNOWN</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-mobile-screen-button"></i> DEVICE STATE</span>
+                                <span id="device-state-text" class="metric-value status-secure">SECURE</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-clock"></i> LAST SEEN</span>
+                                <span id="last-seen-text" class="metric-value">--:--</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- GPS TELEMETRY -->
+                    <section class="crypto-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-location-crosshairs"></i> GPS TELEMETRY</h3>
+                        </div>
+                        <div class="card-body telemetry-layout">
+                            <div class="metric-item">
+                                <span class="metric-label">LATITUDE</span>
+                                <span id="latitude-text" class="metric-value data-stream">--</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">LONGITUDE</span>
+                                <span id="longitude-text" class="metric-value data-stream">--</span>
+                            </div>
+                            <a id="map-link" href="#" target="_blank" class="cyber-action-btn">
+                                <i class="fa-solid fa-map-location-dot"></i> OPEN MAP
+                            </a>
+                        </div>
+                    </section>
+
+                    <!-- ACTION EXECUTIVE MATRIX -->
+                    <section class="crypto-card control-matrix">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-terminal"></i> ACTION EXECUTIVE MATRIX</h3>
+                        </div>
+                        <div class="card-grid">
+                            <button id="cmd-flashlight" class="matrix-btn toggle-btn">
+                                <i class="fa-solid fa-lightbulb"></i>
+                                <span>FLASHLIGHT</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-alarm" class="matrix-btn toggle-btn">
+                                <i class="fa-solid fa-volume-high"></i>
+                                <span>TRIGGER ALARM</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-lock" class="matrix-btn alert-action toggle-btn">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>EMERGENCY LOCK</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-capture" class="matrix-btn">
+                                <i class="fa-solid fa-camera"></i>
+                                <span>CAMERA CAPTURE</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- REMOTE CAMERA MONITOR -->
+                    <section class="crypto-card full-width">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-camera"></i> REMOTE CAMERA MONITOR</h3>
+                        </div>
+                        <div class="card-body image-monitor-layout" style="display: flex; flex-direction: column; justify-content: space-between; height: calc(100% - 50px); min-height: 240px;">
+                            
+                            <div class="viewport-canvas-wrapper">
+                                <img id="cameraPreviewFrame" src="" alt="Live Feed Capture Data" style="display: none;" />
+                                <div id="cameraPlaceholderText" style="color: #8a99ad; font-family: 'Rajdhani', sans-serif; font-size: 14px; text-align: center; letter-spacing: 0.5px;">
+                                    <i class="fa-solid fa-circle-notch fa-spin" style="display: block; font-size: 24px; color: #00E5FF; margin-bottom: 8px;"></i>
+                                    Awaiting terminal image downlink...
+                                </div>
+                            </div>
+                            
+                            <div id="captureTimestamp" style="font-family: 'Orbitron', sans-serif; font-size: 10px; color: #8a99ad; text-align: right; letter-spacing: 0.5px;">
+                                LAST UPDATED: NEVER
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script type="module" src="./multi-dashboard.js"></script>
+</body>
+</html>
