@@ -63,7 +63,7 @@ authForm.addEventListener("submit", (e) => {
             .then((userCredential) => {
                 console.log("Operator successfully authenticated:", userCredential.user.email);
                 // Redirect directly to your dashboard control page
-                window.location.href = "./dashboard.html"; 
+                window.location.href = "./multi-dashboard.html"; 
             })
             .catch((error) => {
                 console.error("Auth Failure Code:", error.code);
