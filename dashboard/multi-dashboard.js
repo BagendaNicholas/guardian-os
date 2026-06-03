@@ -1,48 +1,60 @@
 import { auth, database } from "./firebase.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { ref, onValue, update, off } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// DOM Elements - Telemetry Display Nodes
+// DOM Elements - Sidebar Components
+const devicesList = document.getElementById("devices-list");
+const deviceCountBadge = document.getElementById("device-count");
+const btnRefreshDevices = document.getElementById("btn-refresh-devices");
+
+// DOM Elements - Container Layout Toggles
+const noDeviceAlert = document.getElementById("no-device-alert");
+const deviceDashboard = document.getElementById("device-dashboard");
+const selectedDeviceName = document.getElementById("selected-device-name");
+const deviceOnlineStatus = document.getElementById("device-online-status");
+
+// DOM Elements - Telemetry Node Displays
 const batteryText = document.getElementById("battery-text");
+const batteryBar = document.getElementById("battery-bar");
 const networkText = document.getElementById("network-text");
 const deviceStateText = document.getElementById("device-state-text");
-const gpsText = document.getElementById("gps-text");
+const lastSeenText = document.getElementById("last-seen-text");
+const latitudeText = document.getElementById("latitude-text");
+const longitudeText = document.getElementById("longitude-text");
 const mapLink = document.getElementById("map-link");
 const btnLogout = document.getElementById("btn-logout");
 
-// DOM Elements - Remote Command Grid Buttons
+// DOM Elements - Action Command Matrix Elements
 const cmdFlashlight = document.getElementById("cmd-flashlight");
 const cmdAlarm = document.getElementById("cmd-alarm");
 const cmdLock = document.getElementById("cmd-lock");
 const cmdCapture = document.getElementById("cmd-capture");
 
+// System Runtime References
 let currentUserUid = null;
+let activeDeviceUid = null; // Dynamically tracks current selected device tracking folder
 
-// TARGET CONFIGURATION: Points directly to your active mobile phone hardware node folder
-let targetDeviceUid = "6dGvVsLXCYePuqRZVat2sc6ytG3"; 
+// Active Firebase Database reference pointers kept for state tracking teardown
+let activeStatusRef = null;
+let activeCommandsRef = null;
 
-// ==========================================================================
-// 1. SESSION SECURE PROTECTIONS
-// ==========================================================================
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com"; 
 
+// ==========================================================================
+// 1. SESSION SECURE PROTECTIONS & DISCONNECTS
+// ==========================================================================
 onAuthStateChanged(auth, (user) => {
     if (user) {
         if (user.email && user.email.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
             currentUserUid = user.uid;
             console.log("Secure terminal linked. Operator UID:", currentUserUid);
-            console.log("Targeting device node UID:", targetDeviceUid);
             
-            // Fire up active telemetry feeds using targeted device ID context
-            initializeTelemetryStream(targetDeviceUid);
-            initializeCommandStateListeners(targetDeviceUid);
+            // Build out global sidebar directory list mapping
+            initializeDevicesSidebar();
         } else {
             console.warn("Unauthorized operator profile rejected. Intercepting...");
             alert("Access Denied: This profile is unauthorized to issue command responses.");
-            
-            signOut(auth).then(() => {
-                window.location.href = "./index.html";
-            });
+            secureSignOut();
         }
     } else {
         console.warn("Unauthorized access detected. Intercepting and rerouting...");
@@ -50,71 +62,158 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// Logout Operator System Account
+function secureSignOut() {
+    signOut(auth).then(() => {
+        window.location.href = "./index.html";
+    }).catch((err) => console.error("Disconnect failure:", err));
+}
+
 if (btnLogout) {
-    btnLogout.addEventListener("click", () => {
-        signOut(auth)
-            .then(() => {
-                window.location.href = "./index.html";
-            })
-            .catch((error) => console.error("Disconnect failure:", error));
+    btnLogout.addEventListener("click", secureSignOut);
+}
+
+// ==========================================================================
+// 2. SIDEBAR MULTI-DEVICE DIRECTORY CONSTRUCTOR
+// ==========================================================================
+function initializeDevicesSidebar() {
+    const devicesRootRef = ref(database, "devices");
+
+    onValue(devicesRootRef, (snapshot) => {
+        const devicesData = snapshot.val() || {};
+        if (devicesList) devicesList.innerHTML = ""; // Wipe elements before repaint
+        
+        const deviceKeys = Object.keys(devicesData);
+        if (deviceCountBadge) deviceCountBadge.innerText = deviceKeys.length;
+
+        if (deviceKeys.length === 0) {
+            if (devicesList) {
+                devicesList.innerHTML = `<div class="no-devices-msg" style="padding:15px; color:#8a99ad; font-family:'Rajdhani';">No devices responding...</div>`;
+            }
+            return;
+        }
+
+        deviceKeys.forEach((uid) => {
+            const device = devicesData[uid];
+            const deviceName = device.name || device.status?.deviceName || `TERMINAL [${uid.substring(0, 5)}]`;
+            const isLocked = device.status?.isDeviceLocked || false;
+            
+            // Generate sidebar navigation action item
+            const deviceItem = document.createElement("div");
+            deviceItem.className = `device-item ${uid === activeDeviceUid ? "active" : ""}`;
+            deviceItem.setAttribute("data-uid", uid);
+            
+            deviceItem.innerHTML = `
+                <div class="device-info">
+                    <span class="device-title"><i class="fa-solid fa-mobile-screen"></i> ${deviceName}</span>
+                    <span class="device-subtext">${uid.substring(0, 12)}...</span>
+                </div>
+                <span class="badge ${isLocked ? "alert" : "secure"}">${isLocked ? "LOCKED" : "OK"}</span>
+            `;
+
+            deviceItem.addEventListener("click", () => handleDeviceSelection(uid, deviceName));
+            if (devicesList) devicesList.appendChild(deviceItem);
+        });
+    });
+}
+
+if (btnRefreshDevices) {
+    btnRefreshDevices.addEventListener("click", () => {
+        initializeDevicesSidebar();
+        console.log("Device interface structure updated from server.");
     });
 }
 
 // ==========================================================================
-// 2. REAL-TIME DATA STREAM SYNCHRONIZATION (Phone -> Web)
+// 3. SELECTION ROUTING MANAGER (Teardown & Setup Streams)
+// ==========================================================================
+function handleDeviceSelection(uid, name) {
+    if (activeDeviceUid === uid) return; // Prevent duplicate instantiation loops
+
+    // Highlighting current active item inside sidebar
+    document.querySelectorAll(".device-item").forEach(item => {
+        item.classList.toggle("active", item.getAttribute("data-uid") === uid);
+    });
+
+    // Clean up older real-time streams to prevent memory leaks and UI updates clashing
+    if (activeStatusRef) off(activeStatusRef);
+    if (activeCommandsRef) off(activeCommandsRef);
+
+    // Swap structural CSS displays to present metrics interface
+    if (noDeviceAlert) noDeviceAlert.style.display = "none";
+    if (deviceDashboard) deviceDashboard.style.display = "block";
+    if (selectedDeviceName) selectedDeviceName.innerText = name.toUpperCase();
+
+    activeDeviceUid = uid;
+
+    // Fire up fresh operational pipelines linked to the selected device node
+    initializeTelemetryStream(uid);
+    initializeCommandStateListeners(uid);
+}
+
+// ==========================================================================
+// 4. REAL-TIME TELEMETRY TELEMETRY LOOP (Device -> Dashboard)
 // ==========================================================================
 function initializeTelemetryStream(uid) {
-    const statusRef = ref(database, `devices/${uid}/status`);
+    activeStatusRef = ref(database, `devices/${uid}/status`);
 
-    // Track standard device status data and internal images
-    onValue(statusRef, (snapshot) => {
+    onValue(activeStatusRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) {
-            console.log("No telemetry received yet. Device pending connection...");
-            if (batteryText) batteryText.innerText = "--%";
-            if (networkText) networkText.innerText = "UNKNOWN";
+            resetTelemetryUI();
             return;
         }
 
-        // Update Battery Level Metrics
-        if (batteryText) {
-            batteryText.innerText = data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+        // Handle Battery Visuals & Width Fill percentages
+        if (batteryText) batteryText.innerText = data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+        if (batteryBar) {
+            const currentPct = data.batteryPercentage || 0;
+            batteryBar.style.width = `${currentPct}%`;
+            batteryBar.style.backgroundColor = currentPct < 20 ? "#ff0055" : currentPct < 50 ? "#ffaa00" : "#00E5FF";
         }
 
-        // Update Network Architecture Info
-        if (networkText) {
-            networkText.innerText = data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
+        // Update Network details
+        if (networkText) networkText.innerText = data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
+
+        // Update Time Matrix Stamps
+        if (lastSeenText) {
+            if (data.lastSeenTimestamp) {
+                const dateObj = new Date(data.lastSeenTimestamp);
+                lastSeenText.innerText = isNaN(dateObj.getTime()) ? data.lastSeenTimestamp : dateObj.toLocaleTimeString();
+            } else {
+                lastSeenText.innerText = new Date().toLocaleTimeString();
+            }
         }
 
-        // Update Global Positioning Telemetry Safely (Crash Resistant)
-        if (gpsText) {
+        // Process Latitude and Longitude Coordinates safely
+        if (latitudeText && longitudeText) {
             if (data.latitude !== undefined && data.longitude !== undefined && data.latitude !== null && data.longitude !== null) {
                 const latNum = parseFloat(data.latitude);
                 const lngNum = parseFloat(data.longitude);
 
                 if (!isNaN(latNum) && !isNaN(lngNum)) {
-                    gpsText.innerText = `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
+                    latitudeText.innerText = latNum.toFixed(5);
+                    longitudeText.innerText = lngNum.toFixed(5);
                     
                     if (mapLink) {
-                        // FIXED: Changed from 1{latNum} to template syntax ${latNum}
+                        // FIXED: Correct formatting for standard web maps link protocols
                         mapLink.href = `https://www.google.com/maps?q=${latNum},${lngNum}`;
                         mapLink.classList.remove("disabled");
+                        mapLink.style.pointerEvents = "auto";
+                        mapLink.style.opacity = "1";
                     }
                 } else {
-                    gpsText.innerText = "Telemetry Format Error";
-                    if (mapLink) mapLink.classList.add("disabled");
+                    latitudeText.innerText = "ERR";
+                    longitudeText.innerText = "ERR";
+                    disableMapLink();
                 }
             } else {
-                gpsText.innerText = "Waiting for coordinates...";
-                if (mapLink) {
-                    mapLink.classList.add("disabled");
-                    mapLink.removeAttribute("href");
-                }
+                latitudeText.innerText = "--";
+                longitudeText.innerText = "--";
+                disableMapLink();
             }
         }
 
-        // Update Overall Security Device States
+        // Handle Global Device Lock states
         if (deviceStateText) {
             if (data.isDeviceLocked) {
                 deviceStateText.innerText = "EMERGENCY LOCK";
@@ -129,7 +228,7 @@ function initializeTelemetryStream(uid) {
             }
         }
 
-        // FIXED: Integrated Image Stream Handler inside status payload stream
+        // Image Monitor Pipeline Stream Handler
         const imageElement = document.getElementById('cameraPreviewFrame');
         const placeholderText = document.getElementById('cameraPlaceholderText');
         const timestampElement = document.getElementById('captureTimestamp');
@@ -146,24 +245,43 @@ function initializeTelemetryStream(uid) {
                 }
             } else {
                 imageElement.style.display = "none";
-                placeholderText.style.display = "flex";
+                placeholderText.style.display = "block";
             }
         }
     });
 }
 
+function disableMapLink() {
+    if (mapLink) {
+        mapLink.classList.add("disabled");
+        mapLink.removeAttribute("href");
+        mapLink.style.pointerEvents = "none";
+        mapLink.style.opacity = "0.4";
+    }
+}
+
+function resetTelemetryUI() {
+    if (batteryText) batteryText.innerText = "--%";
+    if (batteryBar) batteryBar.style.width = "0%";
+    if (networkText) networkText.innerText = "UNKNOWN";
+    if (latitudeText) latitudeText.innerText = "--";
+    if (longitudeText) longitudeText.innerText = "--";
+    disableMapLink();
+}
+
 // ==========================================================================
-// 3. COMMAND EXECUTIVE LOOP MANAGERS (Web -> Phone Toggle states)
+// 5. EXECUTIVE COMMAND PROPS (Dashboard Matrix -> Device UI Status)
 // ==========================================================================
 function initializeCommandStateListeners(uid) {
-    const commandsRef = ref(database, `devices/${uid}/commands`);
+    activeCommandsRef = ref(database, `devices/${uid}/commands`);
 
-    onValue(commandsRef, (snapshot) => {
+    onValue(activeCommandsRef, (snapshot) => {
         const commands = snapshot.val() || {};
 
-        toggleButtonVisualState(cmdFlashlight, commands.flashlight);
-        toggleButtonVisualState(cmdAlarm, commands.alarm);
-        toggleButtonVisualState(cmdLock, commands.emergencyLock);
+        // Sync local interface state visual markers with server definitions
+        updateMatrixButtonState(cmdFlashlight, commands.flashlight);
+        updateMatrixButtonState(cmdAlarm, commands.alarm);
+        updateMatrixButtonState(cmdLock, commands.emergencyLock);
         
         if (cmdCapture) {
             const label = cmdCapture.querySelector('span');
@@ -178,69 +296,13 @@ function initializeCommandStateListeners(uid) {
     });
 }
 
-function toggleButtonVisualState(buttonElement, isActive) {
-    if (buttonElement) {
-        if (isActive) {
-            buttonElement.classList.add("active-state");
-        } else {
-            buttonElement.classList.remove("active-state");
-        }
-    }
-}
-
-if (cmdFlashlight) {
-    cmdFlashlight.addEventListener("click", () => {
-        const isCurrentlyActive = cmdFlashlight.classList.contains("active-state");
-        sendRemoteCommand("flashlight", !isCurrentlyActive);
-    });
-}
-
-if (cmdAlarm) {
-    cmdAlarm.addEventListener("click", () => {
-        const isCurrentlyActive = cmdAlarm.classList.contains("active-state");
-        sendRemoteCommand("alarm", !isCurrentlyActive);
-    });
-}
-
-if (cmdLock) {
-    cmdLock.addEventListener("click", () => {
-        const isCurrentlyActive = cmdLock.classList.contains("active-state");
-        const confirmLock = confirm(isCurrentlyActive ? "Deactivate Emergency Lockdown protocol?" : "Initialize Emergency Device Lockdown protocol?");
-        if (confirmLock) {
-            const targetState = !isCurrentlyActive;
-            const updates = {};
-            updates[`devices/${targetDeviceUid}/commands/emergencyLock`] = targetState;
-            updates[`devices/${targetDeviceUid}/status/isDeviceLocked`] = targetState;
-            update(ref(database), updates);
-        }
-    });
-}
-
-if (cmdCapture) {
-    cmdCapture.addEventListener("click", () => {
-        const imageElement = document.getElementById('cameraPreviewFrame');
-        const placeholderText = document.getElementById('cameraPlaceholderText');
-        if (imageElement && placeholderText) {
-            imageElement.style.display = "none";
-            placeholderText.style.display = "flex";
-        }
-
-        sendRemoteCommand("cameraCapture", true);
-    });
-}
-
-function sendRemoteCommand(commandName, targetValue) {
-    if (!targetDeviceUid) return; 
+function updateMatrixButtonState(buttonElement, isActive) {
+    if (!buttonElement) return;
+    const toggleIndicator = buttonElement.querySelector(".toggle-state");
     
-    const targetFolderRef = ref(database, `devices/${targetDeviceUid}/commands`);
-    const dynamicCommandPayload = {};
-    dynamicCommandPayload[commandName] = targetValue;
-    
-    console.log(`Uplinking remote dashboard execution instruction [${commandName}]:`, targetValue);
-    
-    update(targetFolderRef, dynamicCommandPayload)
-        .then(() => {
-            console.log(`Database transaction confirmation received: [${commandName}] successfully synced.`);
-        })
-        .catch((error) => console.error(`Command execution fault [${commandName}]:`, error));
-}
+    if (isActive) {
+        buttonElement.classList.add("active-state");
+        if (toggleIndicator) toggleIndicator.innerText = "ON";
+    } else {
+        buttonElement.classList.remove("active-state");
+        if (toggle
