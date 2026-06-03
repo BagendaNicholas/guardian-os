@@ -12,7 +12,6 @@
 
     <div class="background-grid"></div>
 
-    <!-- HEADER -->
     <header class="dashboard-header">
         <div class="brand">
             <i class="fa-solid fa-shield-halved tech-glow"></i>
@@ -26,7 +25,6 @@
     </header>
 
     <div class="dashboard-container">
-        <!-- DEVICES SIDEBAR -->
         <aside class="devices-sidebar">
             <div class="sidebar-header">
                 <h3><i class="fa-solid fa-mobile-screen-button"></i> CONNECTED DEVICES</h3>
@@ -34,8 +32,7 @@
             </div>
             
             <div id="devices-list" class="devices-list">
-                <!-- Device items will be dynamically inserted here -->
-            </div>
+                </div>
 
             <div class="sidebar-footer">
                 <button id="btn-refresh-devices" class="sidebar-action-btn">
@@ -44,9 +41,7 @@
             </div>
         </aside>
 
-        <!-- MAIN DASHBOARD -->
         <main class="dashboard-main">
-            <!-- Device Not Selected Alert -->
             <div id="no-device-alert" class="alert-container" style="display: flex;">
                 <div class="alert-message">
                     <i class="fa-solid fa-exclamation-triangle"></i>
@@ -55,7 +50,6 @@
                 </div>
             </div>
 
-            <!-- Device Dashboard (Hidden initially) -->
             <div id="device-dashboard" class="device-dashboard" style="display: none;">
                 
                 <div class="device-name-bar">
@@ -65,7 +59,6 @@
 
                 <div class="dashboard-grid-container">
 
-                    <!-- SYSTEM METRICS -->
                     <section class="crypto-card">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-microchip"></i> SYSTEM METRICS</h3>
@@ -91,7 +84,6 @@
                         </div>
                     </section>
 
-                    <!-- GPS TELEMETRY -->
                     <section class="crypto-card">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-location-crosshairs"></i> GPS TELEMETRY</h3>
@@ -105,13 +97,12 @@
                                 <span class="metric-label">LONGITUDE</span>
                                 <span id="longitude-text" class="metric-value data-stream">--</span>
                             </div>
-                            <a id="map-link" href="#" target="_blank" class="cyber-action-btn">
+                            <a id="map-link" href="#" target="_blank" class="cyber-action-btn disabled" style="pointer-events: none; opacity: 0.4;">
                                 <i class="fa-solid fa-map-location-dot"></i> OPEN MAP
                             </a>
                         </div>
                     </section>
 
-                    <!-- ACTION EXECUTIVE MATRIX -->
                     <section class="crypto-card control-matrix">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-terminal"></i> ACTION EXECUTIVE MATRIX</h3>
@@ -139,7 +130,6 @@
                         </div>
                     </section>
 
-                    <!-- REMOTE CAMERA MONITOR -->
                     <section class="crypto-card full-width">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-camera"></i> REMOTE CAMERA MONITOR</h3>
