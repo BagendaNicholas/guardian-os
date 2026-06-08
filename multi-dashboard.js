@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-import { getDatabase, ref, onValue, set, off, get } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+import { getDatabase, ref, onValue, set, update, off, get } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
 // ==========================================
@@ -29,6 +29,8 @@ let selectedDevice = null;
 let allDevices = [];
 let deviceListeners = {};
 
+const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
+
 // ==========================================
 // DOM Elements
 // ==========================================
@@ -43,11 +45,12 @@ const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
 // INITIALIZATION
 // ==========================================
 onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if (user && user.email?.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
         currentUser = user;
-        console.log("👤 User logged in:", user.email);
+        console.log("👤 Operator logged in:", user.email);
         loadAllDevices();
     } else {
+        console.log("⛔ Access denied - not authorized operator");
         window.location.href = './index.html';
     }
 });
@@ -71,7 +74,7 @@ function loadAllDevices() {
                 allDevices.push({
                     uid: deviceUid,
                     name: deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`,
-                    battery: deviceData.battery_level || 0,
+                    battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
                     lastSeen: deviceData.last_seen || 0,
                     online: (Date.now() - (deviceData.last_seen || 0)) < 60000
                 });
@@ -158,89 +161,133 @@ function loadDeviceData(deviceUid) {
     if (!device) return;
     
     document.getElementById('selected-device-name').textContent = device.name;
-    updateMetrics(deviceUid);
-    setupRealtimeListeners(deviceUid);
+    initializeTelemetryStream(deviceUid);
+    initializeCommandStateListeners(deviceUid);
 }
 
 // ==========================================
-// UPDATE DEVICE METRICS
+// REAL-TIME DATA STREAM SYNCHRONIZATION
 // ==========================================
-function updateMetrics(deviceUid) {
-    console.log("📊 Updating metrics for:", deviceUid);
+function initializeTelemetryStream(uid) {
+    console.log("📊 Initializing telemetry stream for:", uid);
     
-    const deviceRef = ref(database, `devices/${deviceUid}`);
-    const listener = onValue(deviceRef, (snapshot) => {
+    const statusRef = ref(database, `devices/${uid}/status`);
+    const listener = onValue(statusRef, (snapshot) => {
         if (!snapshot.exists()) {
-            console.log("⚠️ Device data not found");
+            console.log("⚠️ Status data not found for device");
             return;
         }
-        
+
         const data = snapshot.val();
-        
+        console.log("📈 Status data received");
+
         // Battery Level
-        const batteryPercent = data.battery_level || 0;
-        document.getElementById('battery-text').textContent = `${batteryPercent}%`;
-        document.getElementById('battery-bar').innerHTML = `<div class="battery-bar-fill" style="width: ${batteryPercent}%"></div>`;
-        
+        if (document.getElementById('battery-text')) {
+            document.getElementById('battery-text').textContent = 
+                data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+        }
+
+        // Network Type
+        if (document.getElementById('network-text')) {
+            document.getElementById('network-text').textContent = 
+                data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
+        }
+
+        // GPS Coordinates
+        if (document.getElementById('latitude-text') && data.latitude != null && data.longitude != null) {
+            const lat = parseFloat(data.latitude);
+            const lng = parseFloat(data.longitude);
+            
+            document.getElementById('latitude-text').textContent = lat.toFixed(6) || '--';
+            document.getElementById('longitude-text').textContent = lng.toFixed(6) || '--';
+            
+            const mapLink = document.getElementById('map-link');
+            if (mapLink) {
+                mapLink.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            }
+        }
+
         // Device State (Lock Status)
-        const lockState = data.commands?.emergencyLock ? 'LOCKED' : 'SECURE';
-        const stateEl = document.getElementById('device-state-text');
-        stateEl.textContent = lockState;
-        stateEl.className = `metric-value ${lockState === 'LOCKED' ? 'status-locked' : 'status-secure'}`;
-        
-        // Last Seen Time
-        document.getElementById('last-seen-text').textContent = formatTime(data.last_seen);
-        
-        // Location (Latitude & Longitude)
-        if (data.location) {
-            document.getElementById('latitude-text').textContent = data.location.lat?.toFixed(6) || '--';
-            document.getElementById('longitude-text').textContent = data.location.lng?.toFixed(6) || '--';
-            document.getElementById('map-link').href = `https://www.google.com/maps/search/?api=1&query=${data.location.lat},${data.location.lng}`;
+        if (document.getElementById('device-state-text')) {
+            const stateEl = document.getElementById('device-state-text');
+            stateEl.textContent = data.isDeviceLocked ? "EMERGENCY LOCK" : "SECURE";
+            stateEl.className = data.isDeviceLocked ? "metric-value alert-text" : "metric-value status-secure";
+        }
+
+        // Camera Image (from status.lastPhotoUrl)
+        if (data.lastPhotoUrl) {
+            const img = document.getElementById('cameraPreviewFrame');
+            const placeholder = document.getElementById('cameraPlaceholderText');
+            
+            if (img && placeholder) {
+                placeholder.style.display = "none";
+                img.style.display = "block";
+                img.src = data.lastPhotoUrl;
+                
+                const timestampEl = document.getElementById('captureTimestamp');
+                if (timestampEl) {
+                    timestampEl.textContent = `LAST UPDATED: ${new Date().toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit', 
+                        hour12: false 
+                    })}`;
+                }
+                
+                console.log("✓ Camera image updated");
+            }
         }
     }, (error) => {
-        console.error("❌ Error loading metrics:", error);
+        console.error("❌ Error loading status data:", error);
     });
-    
-    deviceListeners[`metrics-${deviceUid}`] = listener;
+
+    deviceListeners[`status-${uid}`] = listener;
 }
 
 // ==========================================
-// SETUP REALTIME LISTENERS
+// COMMAND STATE LISTENERS
 // ==========================================
-function setupRealtimeListeners(deviceUid) {
-    // Setup Camera Listener
-    setupCameraListener(deviceUid);
+function initializeCommandStateListeners(uid) {
+    console.log("🎮 Setting up command listeners for:", uid);
     
-    // Setup Commands Listener
-    const commandsRef = ref(database, `devices/${deviceUid}/commands`);
+    const commandsRef = ref(database, `devices/${uid}/commands`);
     const listener = onValue(commandsRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.log("⚠️ Commands not found for device");
-            return;
-        }
+        const cmd = snapshot.val() || {};
         
-        const commands = snapshot.val();
-        updateBtnState('cmd-flashlight', commands.flashlight, 'ON', 'OFF');
-        updateBtnState('cmd-alarm', commands.alarm, 'ON', 'OFF');
-        updateBtnState('cmd-lock', commands.emergencyLock, 'LOCKED', 'UNLOCKED');
+        toggleButtonVisualState('cmd-flashlight', cmd.flashlight);
+        toggleButtonVisualState('cmd-alarm', cmd.alarm);
+        toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
+        
+        const captureBtn = document.getElementById('cmd-capture');
+        if (captureBtn) {
+            captureBtn.classList.toggle('active', !!cmd.cameraCapture);
+            const label = captureBtn.querySelector('span');
+            if (label) {
+                label.textContent = cmd.cameraCapture ? "CAPTURING..." : "CAMERA CAPTURE";
+            }
+        }
     }, (error) => {
         console.error("❌ Error loading commands:", error);
     });
-    
-    deviceListeners[`commands-${deviceUid}`] = listener;
+
+    deviceListeners[`commands-${uid}`] = listener;
 }
 
 // ==========================================
-// UPDATE BUTTON STATE
+// TOGGLE BUTTON VISUAL STATE
 // ==========================================
-function updateBtnState(id, active, trueText, falseText) {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    
-    btn.classList.toggle('active', !!active);
-    const stateEl = btn.querySelector('.toggle-state');
-    if (stateEl) {
-        stateEl.textContent = active ? trueText : falseText;
+function toggleButtonVisualState(btnId, active) {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        btn.classList.toggle('active', !!active);
+        const stateEl = btn.querySelector('.toggle-state');
+        if (stateEl) {
+            stateEl.textContent = active ? (
+                btnId === 'cmd-lock' ? 'LOCKED' : 'ON'
+            ) : (
+                btnId === 'cmd-lock' ? 'UNLOCKED' : 'OFF'
+            );
+        }
     }
 }
 
@@ -248,128 +295,62 @@ function updateBtnState(id, active, trueText, falseText) {
 // SETUP COMMAND EVENT LISTENERS
 // ==========================================
 function setupCommandListeners(deviceUid) {
+    console.log("🎯 Binding command event listeners for:", deviceUid);
+    
+    // Flashlight Command
     const flashBtn = document.getElementById('cmd-flashlight');
+    if (flashBtn) {
+        flashBtn.onclick = () => {
+            const newState = !flashBtn.classList.contains('active');
+            sendRemoteCommand(deviceUid, 'flashlight', newState);
+        };
+    }
+    
+    // Alarm Command
     const alarmBtn = document.getElementById('cmd-alarm');
+    if (alarmBtn) {
+        alarmBtn.onclick = () => {
+            const newState = !alarmBtn.classList.contains('active');
+            sendRemoteCommand(deviceUid, 'alarm', newState);
+        };
+    }
+    
+    // Emergency Lock Command
     const lockBtn = document.getElementById('cmd-lock');
+    if (lockBtn) {
+        lockBtn.onclick = () => {
+            const newState = !lockBtn.classList.contains('active');
+            if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
+                const updates = {};
+                updates[`devices/${deviceUid}/commands/emergencyLock`] = newState;
+                updates[`devices/${deviceUid}/status/isDeviceLocked`] = newState;
+                update(ref(database), updates);
+                console.log("🔒 Lock command sent");
+            }
+        };
+    }
+    
+    // Camera Capture Command
     const captureBtn = document.getElementById('cmd-capture');
-    
-    if (flashBtn) flashBtn.onclick = () => toggleCommand(deviceUid, 'flashlight');
-    if (alarmBtn) alarmBtn.onclick = () => toggleCommand(deviceUid, 'alarm');
-    if (lockBtn) lockBtn.onclick = () => toggleCommand(deviceUid, 'emergencyLock');
-    if (captureBtn) captureBtn.onclick = () => triggerCommand(deviceUid, 'cameraCapture');
-}
-
-// ==========================================
-// TOGGLE COMMAND (Flashlight, Alarm, Lock)
-// ==========================================
-async function toggleCommand(deviceUid, command) {
-    try {
-        const commandRef = ref(database, `devices/${deviceUid}/commands/${command}`);
-        const snapshot = await get(commandRef);
-        
-        if (snapshot.exists()) {
-            const newValue = !snapshot.val();
-            await set(commandRef, newValue);
-            console.log(`✓ Toggled ${command} to:`, newValue);
-        }
-    } catch (error) {
-        console.error("❌ Error toggling command:", error);
+    if (captureBtn) {
+        captureBtn.onclick = () => {
+            sendRemoteCommand(deviceUid, 'cameraCapture', true);
+        };
     }
 }
 
 // ==========================================
-// TRIGGER COMMAND (Camera Capture)
+// SEND REMOTE COMMAND
 // ==========================================
-async function triggerCommand(deviceUid, command) {
+function sendRemoteCommand(deviceUid, commandName, value) {
     try {
-        const commandRef = ref(database, `devices/${deviceUid}/commands/${command}`);
-        await set(commandRef, true);
-        console.log(`✓ Triggered command: ${command}`);
-        
-        // Reset after 1 second
-        setTimeout(async () => {
-            await set(commandRef, false);
-        }, 1000);
+        const payload = {};
+        payload[commandName] = value;
+        update(ref(database, `devices/${deviceUid}/commands`), payload);
+        console.log(`✓ Sent command: ${commandName} = ${value}`);
     } catch (error) {
-        console.error("❌ Error triggering command:", error);
+        console.error(`❌ Error sending command ${commandName}:`, error);
     }
-}
-
-// ==========================================
-// SETUP CAMERA LISTENER
-// ==========================================
-function setupCameraListener(deviceUid) {
-    console.log("📷 Setting up camera listener for:", deviceUid);
-    
-    // Read from image_links (same path as old dashboard)
-    const imagesRef = ref(database, `image_links/${deviceUid}`);
-    const listener = onValue(imagesRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.log("⚠️ No images found in image_links for device");
-            return;
-        }
-        
-        const imageData = snapshot.val();
-        console.log("📷 Image data received");
-        
-        // Handle if it's a direct image object or array of images
-        let imageUrl = null;
-        let timestamp = null;
-        
-        if (imageData.url) {
-            // Single image object with url field
-            imageUrl = imageData.url;
-            timestamp = imageData.timestamp || Date.now();
-            console.log("✓ Single image found");
-        } else if (typeof imageData === 'object') {
-            // Multiple images - get most recent
-            const images = Object.values(imageData).filter(img => img && img.url);
-            if (images.length > 0) {
-                images.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                imageUrl = images[0].url;
-                timestamp = images[0].timestamp || Date.now();
-                console.log("✓ Multiple images found, showing latest");
-            }
-        }
-        
-        if (imageUrl) {
-            // Update camera preview
-            const img = document.getElementById('cameraPreviewFrame');
-            img.src = imageUrl;
-            img.style.display = 'block';
-            
-            // Hide placeholder
-            const placeholder = document.getElementById('cameraPlaceholderText');
-            if (placeholder) {
-                placeholder.style.display = 'none';
-            }
-            
-            // Update timestamp
-            const timestampEl = document.getElementById('captureTimestamp');
-            if (timestampEl) {
-                timestampEl.textContent = `LAST UPDATED: ${formatTime(timestamp)}`;
-            }
-            
-            console.log("✓ Camera preview updated successfully");
-        }
-    }, (error) => {
-        console.error("❌ Error loading camera images:", error);
-    });
-    
-    deviceListeners[`camera-${deviceUid}`] = listener;
-}
-
-// ==========================================
-// FORMAT TIME
-// ==========================================
-function formatTime(timestamp) {
-    if (!timestamp) return '--:--';
-    return new Date(timestamp).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
 }
 
 // ==========================================
@@ -383,22 +364,27 @@ function showNoDeviceAlert() {
 // ==========================================
 // EVENT LISTENERS
 // ==========================================
-logoutBtn.addEventListener('click', () => {
-    signOut(auth).then(() => {
-        window.location.href = './index.html';
-    }).catch(error => {
-        console.error("❌ Logout error:", error);
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth).then(() => {
+            window.location.href = './index.html';
+        }).catch(error => {
+            console.error("❌ Logout error:", error);
+        });
     });
-});
+}
 
-refreshDevicesBtn.addEventListener('click', () => {
-    console.log("🔄 Refreshing devices...");
-    loadAllDevices();
-});
+if (refreshDevicesBtn) {
+    refreshDevicesBtn.addEventListener('click', () => {
+        console.log("🔄 Refreshing devices...");
+        loadAllDevices();
+    });
+}
 
 // ==========================================
 // STARTUP LOG
 // ==========================================
-console.log("✓ GuardianOS Multi-Dashboard v1.2 (Full Working Version) loaded");
+console.log("✓ GuardianOS Multi-Dashboard v2.0 (Working with Images) loaded");
 console.log("✓ Reading devices from: /devices");
-console.log("✓ Reading images from: /image_links");
+console.log("✓ Reading camera images from: /devices/{id}/status/lastPhotoUrl");
+console.log("✓ Operator access only");
