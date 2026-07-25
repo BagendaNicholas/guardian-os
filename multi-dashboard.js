@@ -67,32 +67,31 @@ function loadAllDevices() {
         
         if (snapshot.exists()) {
             const data = snapshot.val();
-            console.log("✓ Found devices:", Object.keys(data).length);
             
             Object.keys(data).forEach(deviceUid => {
                 const deviceData = data[deviceUid];
+                // Use identity.custom_name if available, otherwise fallback
+                const name = deviceData.identity?.custom_name || deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`;
+                
                 allDevices.push({
                     uid: deviceUid,
-                    name: deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`,
+                    name: name,
                     battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
                     lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 60000
+                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000 // 5 min threshold
                 });
             });
             
-            console.log("📊 Total devices loaded:", allDevices.length);
             renderDevicesList();
             
             if (allDevices.length > 0 && !selectedDevice) {
                 selectDevice(allDevices[0].uid);
             }
         } else {
-            console.log("⚠️ No devices found");
             showNoDeviceAlert();
         }
     }, (error) => {
         console.error("❌ Error loading devices:", error);
-        showNoDeviceAlert();
     });
 }
 
@@ -118,7 +117,6 @@ function renderDevicesList() {
         devicesList.appendChild(deviceItem);
     });
     
-    // Show/hide alert based on device count
     if (allDevices.length === 0) {
         showNoDeviceAlert();
     } else {
@@ -131,18 +129,14 @@ function renderDevicesList() {
 // SELECT DEVICE
 // ==========================================
 function selectDevice(deviceUid) {
-    console.log("🔄 Selecting device:", deviceUid);
-    
-    // Reset UI to prevent flickering
-    document.getElementById('battery-text').textContent = '--%';
-    document.getElementById('cameraPreviewFrame').style.display = 'none';
-    document.getElementById('cameraPlaceholderText').style.display = 'block';
-    
     selectedDevice = deviceUid;
     renderDevicesList();
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
     
+    // Inject new controls if not already present
+    injectAdvancedControls();
+
     // Clean up old listeners
     Object.keys(deviceListeners).forEach(key => {
         off(deviceListeners[key]);
@@ -151,6 +145,45 @@ function selectDevice(deviceUid) {
     
     loadDeviceData(deviceUid);
     setupCommandListeners(deviceUid);
+}
+
+// ==========================================
+// INJECT ADVANCED CONTROLS (Time & Media)
+// ==========================================
+function injectAdvancedControls() {
+    if (document.getElementById('cmd-audio')) return; // Already injected
+
+    const matrix = document.querySelector('.card-grid');
+    if (!matrix) return;
+
+    // 1. Time Activation Input
+    const timeWrapper = document.createElement('div');
+    timeWrapper.style.gridColumn = "1 / -1";
+    timeWrapper.style.marginTop = "10px";
+    timeWrapper.style.padding = "10px";
+    timeWrapper.style.background = "#1a1a1a";
+    timeWrapper.style.borderRadius = "5px";
+    timeWrapper.innerHTML = `
+        <label style="color:#00E5FF; font-size:11px; letter-spacing:1px; display:block; margin-bottom:5px;">
+            <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
+        </label>
+        <input type="time" id="time-setter" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:8px; font-family:'Orbitron';">
+    `;
+    matrix.parentElement.insertBefore(timeWrapper, matrix.nextSibling);
+
+    // 2. Audio Record Button
+    const audioBtn = document.createElement('button');
+    audioBtn.id = 'cmd-audio';
+    audioBtn.className = 'matrix-btn toggle-btn';
+    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span><span class="toggle-state">OFF</span>`;
+    matrix.appendChild(audioBtn);
+
+    // 3. Video Record Button
+    const videoBtn = document.createElement('button');
+    videoBtn.id = 'cmd-video';
+    videoBtn.className = 'matrix-btn toggle-btn';
+    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span><span class="toggle-state">OFF</span>`;
+    matrix.appendChild(videoBtn);
 }
 
 // ==========================================
@@ -166,81 +199,41 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM SYNCHRONIZATION
+// REAL-TIME DATA STREAM
 // ==========================================
 function initializeTelemetryStream(uid) {
-    console.log("📊 Initializing telemetry stream for:", uid);
-    
     const statusRef = ref(database, `devices/${uid}/status`);
     const listener = onValue(statusRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.log("⚠️ Status data not found for device");
-            return;
-        }
-
+        if (!snapshot.exists()) return;
         const data = snapshot.val();
-        console.log("📈 Status data received");
 
-        // Battery Level
         if (document.getElementById('battery-text')) {
             document.getElementById('battery-text').textContent = 
                 data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
-        }
-
-        // Network Type
-        if (document.getElementById('network-text')) {
-            document.getElementById('network-text').textContent = 
-                data.networkType ? data.networkType.toUpperCase() : "UNKNOWN";
-        }
-
-        // GPS Coordinates
-        if (document.getElementById('latitude-text') && data.latitude != null && data.longitude != null) {
-            const lat = parseFloat(data.latitude);
-            const lng = parseFloat(data.longitude);
             
-            document.getElementById('latitude-text').textContent = lat.toFixed(6) || '--';
-            document.getElementById('longitude-text').textContent = lng.toFixed(6) || '--';
+            const bar = document.getElementById('battery-bar');
+            if(bar) bar.style.width = `${data.batteryPercentage || 0}%`;
+        }
+
+        if (document.getElementById('latitude-text') && data.latitude != null) {
+            document.getElementById('latitude-text').textContent = parseFloat(data.latitude).toFixed(6);
+            document.getElementById('longitude-text').textContent = parseFloat(data.longitude).toFixed(6);
             
             const mapLink = document.getElementById('map-link');
-            if (mapLink) {
-                mapLink.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-            }
+            if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // Device State (Lock Status)
-        if (document.getElementById('device-state-text')) {
-            const stateEl = document.getElementById('device-state-text');
-            stateEl.textContent = data.isDeviceLocked ? "EMERGENCY LOCK" : "SECURE";
-            stateEl.className = data.isDeviceLocked ? "metric-value alert-text" : "metric-value status-secure";
-        }
-
-        // Camera Image (from status.lastPhotoUrl)
+        // Camera Image Update
         if (data.lastPhotoUrl) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
-            
             if (img && placeholder) {
                 placeholder.style.display = "none";
                 img.style.display = "block";
-                img.src = data.lastPhotoUrl;
-                
-                const timestampEl = document.getElementById('captureTimestamp');
-                if (timestampEl) {
-                    timestampEl.textContent = `LAST UPDATED: ${new Date().toLocaleTimeString('en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit', 
-                        second: '2-digit', 
-                        hour12: false 
-                    })}`;
-                }
-                
-                console.log("✓ Camera image updated");
+                img.src = data.lastPhotoUrl + "?t=" + Date.now(); // Cache busting
             }
         }
-    }, (error) => {
-        console.error("❌ Error loading status data:", error);
     });
-
     deviceListeners[`status-${uid}`] = listener;
 }
 
@@ -248,8 +241,6 @@ function initializeTelemetryStream(uid) {
 // COMMAND STATE LISTENERS
 // ==========================================
 function initializeCommandStateListeners(uid) {
-    console.log("🎮 Setting up command listeners for:", uid);
-    
     const commandsRef = ref(database, `devices/${uid}/commands`);
     const listener = onValue(commandsRef, (snapshot) => {
         const cmd = snapshot.val() || {};
@@ -258,133 +249,94 @@ function initializeCommandStateListeners(uid) {
         toggleButtonVisualState('cmd-alarm', cmd.alarm);
         toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
         
-        const captureBtn = document.getElementById('cmd-capture');
-        if (captureBtn) {
-            captureBtn.classList.toggle('active', !!cmd.cameraCapture);
-            const label = captureBtn.querySelector('span');
-            if (label) {
-                label.textContent = cmd.cameraCapture ? "CAPTURING..." : "CAMERA CAPTURE";
+        // New Features State Sync
+        toggleButtonVisualState('cmd-audio', cmd.record_audio);
+        toggleButtonVisualState('cmd-video', cmd.record_video);
+
+        // Update Time Input if it exists
+        const timeInput = document.getElementById('time-setter');
+        if (timeInput && cmd.activation_time) {
+            // Only update if not currently focused to avoid typing interference
+            if (document.activeElement !== timeInput) {
+                timeInput.value = cmd.activation_time;
             }
         }
-    }, (error) => {
-        console.error("❌ Error loading commands:", error);
     });
-
     deviceListeners[`commands-${uid}`] = listener;
-}
-
-// ==========================================
-// TOGGLE BUTTON VISUAL STATE
-// ==========================================
-function toggleButtonVisualState(btnId, active) {
-    const btn = document.getElementById(btnId);
-    if (btn) {
-        btn.classList.toggle('active', !!active);
-        const stateEl = btn.querySelector('.toggle-state');
-        if (stateEl) {
-            stateEl.textContent = active ? (
-                btnId === 'cmd-lock' ? 'LOCKED' : 'ON'
-            ) : (
-                btnId === 'cmd-lock' ? 'UNLOCKED' : 'OFF'
-            );
-        }
-    }
 }
 
 // ==========================================
 // SETUP COMMAND EVENT LISTENERS
 // ==========================================
 function setupCommandListeners(deviceUid) {
-    console.log("🎯 Binding command event listeners for:", deviceUid);
-    
-    // Flashlight Command
-    const flashBtn = document.getElementById('cmd-flashlight');
-    if (flashBtn) {
-        flashBtn.onclick = () => {
-            const newState = !flashBtn.classList.contains('active');
-            sendRemoteCommand(deviceUid, 'flashlight', newState);
-        };
-    }
-    
-    // Alarm Command
-    const alarmBtn = document.getElementById('cmd-alarm');
-    if (alarmBtn) {
-        alarmBtn.onclick = () => {
-            const newState = !alarmBtn.classList.contains('active');
-            sendRemoteCommand(deviceUid, 'alarm', newState);
-        };
-    }
-    
-    // Emergency Lock Command
-    const lockBtn = document.getElementById('cmd-lock');
-    if (lockBtn) {
-        lockBtn.onclick = () => {
-            const newState = !lockBtn.classList.contains('active');
-            if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
-                const updates = {};
-                updates[`devices/${deviceUid}/commands/emergencyLock`] = newState;
-                updates[`devices/${deviceUid}/status/isDeviceLocked`] = newState;
-                update(ref(database), updates);
-                console.log("🔒 Lock command sent");
-            }
-        };
-    }
-    
-    // Camera Capture Command
-    const captureBtn = document.getElementById('cmd-capture');
-    if (captureBtn) {
-        captureBtn.onclick = () => {
-            sendRemoteCommand(deviceUid, 'cameraCapture', true);
-        };
-    }
+    // Standard Buttons
+    document.getElementById('cmd-flashlight')?.addEventListener('click', () => {
+        const newState = !document.getElementById('cmd-flashlight').classList.contains('active');
+        sendRemoteCommand(deviceUid, 'flashlight', newState);
+    });
+
+    document.getElementById('cmd-alarm')?.addEventListener('click', () => {
+        const newState = !document.getElementById('cmd-alarm').classList.contains('active');
+        sendRemoteCommand(deviceUid, 'alarm', newState);
+    });
+
+    document.getElementById('cmd-lock')?.addEventListener('click', () => {
+        const newState = !document.getElementById('cmd-lock').classList.contains('active');
+        if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
+            sendRemoteCommand(deviceUid, 'emergencyLock', newState);
+        }
+    });
+
+    document.getElementById('cmd-capture')?.addEventListener('click', () => {
+        sendRemoteCommand(deviceUid, 'cameraCapture', true);
+    });
+
+    // New Feature Buttons
+    document.getElementById('cmd-audio')?.addEventListener('click', () => {
+        const newState = !document.getElementById('cmd-audio').classList.contains('active');
+        sendRemoteCommand(deviceUid, 'record_audio', newState);
+    });
+
+    document.getElementById('cmd-video')?.addEventListener('click', () => {
+        const newState = !document.getElementById('cmd-video').classList.contains('active');
+        sendRemoteCommand(deviceUid, 'record_video', newState);
+    });
+
+    // Time Setter
+    document.getElementById('time-setter')?.addEventListener('change', (e) => {
+        if (e.target.value) {
+            sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
+        }
+    });
 }
 
 // ==========================================
-// SEND REMOTE COMMAND
+// UTILITIES
 // ==========================================
 function sendRemoteCommand(deviceUid, commandName, value) {
-    try {
-        const payload = {};
-        payload[commandName] = value;
-        update(ref(database, `devices/${deviceUid}/commands`), payload);
-        console.log(`✓ Sent command: ${commandName} = ${value}`);
-    } catch (error) {
-        console.error(`❌ Error sending command ${commandName}:`, error);
+    update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
+}
+
+function toggleButtonVisualState(btnId, active) {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+        btn.classList.toggle('active', !!active);
+        const stateEl = btn.querySelector('.toggle-state');
+        if (stateEl) {
+            stateEl.textContent = active ? 'ON' : 'OFF';
+        }
     }
 }
 
-// ==========================================
-// SHOW NO DEVICE ALERT
-// ==========================================
 function showNoDeviceAlert() {
     noDeviceAlert.style.display = 'flex';
     deviceDashboard.style.display = 'none';
 }
 
-// ==========================================
-// EVENT LISTENERS
-// ==========================================
 if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-        signOut(auth).then(() => {
-            window.location.href = './index.html';
-        }).catch(error => {
-            console.error("❌ Logout error:", error);
-        });
-    });
+    logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = './index.html'));
 }
 
 if (refreshDevicesBtn) {
-    refreshDevicesBtn.addEventListener('click', () => {
-        console.log("🔄 Refreshing devices...");
-        loadAllDevices();
-    });
+    refreshDevicesBtn.addEventListener('click', loadAllDevices);
 }
-
-// ==========================================
-// STARTUP LOG
-// ==========================================
-console.log("✓ GuardianOS Multi-Dashboard v2.0 (Working with Images) loaded");
-console.log("✓ Reading devices from: /devices");
-console.log("✓ Reading camera images from: /devices/{id}/status/lastPhotoUrl");
-console.log("✓ Operator access only");
