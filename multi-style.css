@@ -4,7 +4,7 @@
 
 /* Time Activation Input Container */
 .time-control-wrapper {
-    grid-column: 1 / -1;
+    grid-column: 1 / -1; /* Spans full width of the grid */
     margin-top: 15px;
     padding: 15px;
     background: rgba(0, 229, 255, 0.03);
@@ -50,7 +50,7 @@ input[type="time"]:hover {
     background: rgba(0, 229, 255, 0.05);
 }
 
-/* Remove default browser icons for cleaner look */
+/* Remove default browser icons for a cleaner look */
 input[type="time"]::-webkit-calendar-picker-indicator {
     filter: invert(1) sepia(1) saturate(5) hue-rotate(160deg);
     cursor: pointer;
