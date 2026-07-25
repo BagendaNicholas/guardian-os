@@ -29,6 +29,13 @@ let selectedDevice = null;
 let allDevices = [];
 let deviceListeners = {};
 
+// ✅ NEW: Local state tracking for trigger buttons to prevent UI flickering
+let localTriggerState = {
+    record_audio: false,
+    record_video: false,
+    cameraCapture: false
+};
+
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
 
 // ==========================================
@@ -47,7 +54,7 @@ const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
 onAuthStateChanged(auth, (user) => {
     if (user && user.email?.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
         currentUser = user;
-        console.log(" Operator logged in:", user.email);
+        console.log("👤 Operator logged in:", user.email);
         loadAllDevices();
     } else {
         console.log("⛔ Access denied - not authorized operator");
@@ -121,6 +128,10 @@ function renderDevicesList() {
 // ==========================================
 function selectDevice(deviceUid) {
     selectedDevice = deviceUid;
+    
+    // ✅ RESET LOCAL TRIGGER STATE WHEN SWITCHING DEVICES
+    localTriggerState = { record_audio: false, record_video: false, cameraCapture: false };
+    
     renderDevicesList();
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
@@ -257,20 +268,27 @@ function initializeTelemetryStream(uid) {
 }
 
 // ==========================================
-// COMMAND STATE LISTENERS
+// COMMAND STATE LISTENERS (UPDATED LOGIC)
 // ==========================================
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
     const listener = onValue(commandsRef, (snapshot) => {
         const cmd = snapshot.val() || {};
         
+        // ✅ PERSISTENT TOGGLES: Sync visual state directly from DB
         toggleButtonVisualState('cmd-flashlight', cmd.flashlight);
         toggleButtonVisualState('cmd-alarm', cmd.alarm);
         toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
+
+        // ✅ TRIGGER BUTTONS: Only sync if local state matches DB (prevents flicker)
+        // If DB says false but local says true, we ignore it (phone is processing)
+        if (cmd.record_audio === localTriggerState.record_audio) {
+            toggleButtonVisualState('cmd-audio', cmd.record_audio);
+        }
         
-        // New Features State Sync
-        toggleButtonVisualState('cmd-audio', cmd.record_audio);
-        toggleButtonVisualState('cmd-video', cmd.record_video);
+        if (cmd.record_video === localTriggerState.record_video) {
+            toggleButtonVisualState('cmd-video', cmd.record_video);
+        }
 
         // Update Time Input if it exists
         const timeInput = document.getElementById('time-setter');
@@ -284,43 +302,70 @@ function initializeCommandStateListeners(uid) {
 }
 
 // ==========================================
-// SETUP COMMAND EVENT LISTENERS
+// SETUP COMMAND EVENT LISTENERS (COMPLETELY REWRITTEN)
 // ==========================================
 function setupCommandListeners(deviceUid) {
-    // Standard Buttons
-    document.getElementById('cmd-flashlight')?.addEventListener('click', () => {
-        const newState = !document.getElementById('cmd-flashlight').classList.contains('active');
-        sendRemoteCommand(deviceUid, 'flashlight', newState);
-    });
-
-    document.getElementById('cmd-alarm')?.addEventListener('click', () => {
-        const newState = !document.getElementById('cmd-alarm').classList.contains('active');
-        sendRemoteCommand(deviceUid, 'alarm', newState);
-    });
-
-    document.getElementById('cmd-lock')?.addEventListener('click', () => {
-        const newState = !document.getElementById('cmd-lock').classList.contains('active');
-        if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
-            sendRemoteCommand(deviceUid, 'emergencyLock', newState);
+    // 1. STANDARD TOGGLE BUTTONS (Flashlight, Alarm, Lock)
+    // These stay ON until you manually turn them OFF
+    ['cmd-flashlight', 'cmd-alarm', 'cmd-lock'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.onclick = () => {
+                const isCurrentlyActive = btn.classList.contains('active');
+                const newState = !isCurrentlyActive;
+                
+                // Map button ID to DB key
+                const dbKey = btnId === 'cmd-lock' ? 'emergencyLock' : btnId.replace('cmd-', '');
+                
+                sendRemoteCommand(deviceUid, dbKey, newState);
+                // UI updates automatically via initializeCommandStateListeners
+            };
         }
     });
 
-    document.getElementById('cmd-capture')?.addEventListener('click', () => {
-        sendRemoteCommand(deviceUid, 'cameraCapture', true);
+    // 2. TRIGGER BUTTONS (Camera, Audio, Video)
+    // These use local state tracking to prevent UI flicker when DB resets to false
+    const triggerButtons = {
+        'cmd-capture': 'cameraCapture',
+        'cmd-audio': 'record_audio',
+        'cmd-video': 'record_video'
+    };
+
+    Object.keys(triggerButtons).forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.onclick = () => {
+                const isCurrentlyActive = btn.classList.contains('active');
+                const newState = !isCurrentlyActive;
+                const dbKey = triggerButtons[btnId];
+
+                // ✅ UPDATE LOCAL STATE IMMEDIATELY
+                localTriggerState[dbKey] = newState;
+
+                // Send command to phone
+                sendRemoteCommand(deviceUid, dbKey, newState);
+
+                // Update UI immediately based on local state
+                toggleButtonVisualState(btnId, newState);
+
+                // ✅ AUTO-RESET LOGIC: If turning ON, auto-send FALSE after 3 seconds
+                // This ensures the phone doesn't get stuck if it fails to reset itself
+                if (newState) {
+                    setTimeout(() => {
+                        // Only reset if user hasn't clicked again in the meantime
+                        if (localTriggerState[dbKey] === true) {
+                            localTriggerState[dbKey] = false;
+                            sendRemoteCommand(deviceUid, dbKey, false);
+                            toggleButtonVisualState(btnId, false);
+                            console.log(`⏱️ Auto-reset trigger: ${dbKey}`);
+                        }
+                    }, 3000); 
+                }
+            };
+        }
     });
 
-    // New Feature Buttons
-    document.getElementById('cmd-audio')?.addEventListener('click', () => {
-        const newState = !document.getElementById('cmd-audio').classList.contains('active');
-        sendRemoteCommand(deviceUid, 'record_audio', newState);
-    });
-
-    document.getElementById('cmd-video')?.addEventListener('click', () => {
-        const newState = !document.getElementById('cmd-video').classList.contains('active');
-        sendRemoteCommand(deviceUid, 'record_video', newState);
-    });
-
-    // Time Setter
+    // 3. TIME SETTER
     document.getElementById('time-setter')?.addEventListener('change', (e) => {
         if (e.target.value) {
             sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
