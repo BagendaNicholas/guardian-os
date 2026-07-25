@@ -130,67 +130,6 @@ body.dashboard-body {
 @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
 
 /* ==========================================
-   ADVANCED CONTROLS (TIME & MEDIA) - DARK MODE FIX
-   ========================================== */
-
-.time-control-wrapper {
-    grid-column: 1 / -1;
-    margin-top: 15px;
-    padding: 15px;
-    background: rgba(0, 229, 255, 0.03);
-    border: 1px solid rgba(0, 229, 255, 0.2);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.time-control-label {
-    font-family: 'Rajdhani', monospace;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: var(--primary-color);
-    text-transform: uppercase;
-}
-
-/* Force Dark Mode on Time Input */
-input[type="time"] {
-    width: 100%;
-    padding: 12px 15px;
-    background: #060913; /* Matches your dark-bg */
-    border: 1px solid rgba(0, 229, 255, 0.3);
-    border-radius: 4px;
-    color: var(--secondary-color);
-    font-family: 'Orbitron', monospace;
-    font-size: 16px;
-    letter-spacing: 2px;
-    outline: none;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-input[type="time"]:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 15px rgba(0, 229, 255, 0.2);
-}
-
-/* Media Button Accents */
-#cmd-audio.active {
-    border-color: var(--warning-color);
-    box-shadow: 0 0 20px rgba(255, 160, 0, 0.4);
-    background: rgba(255, 160, 0, 0.15);
-}
-#cmd-audio.active .toggle-state { color: var(--warning-color); }
-
-#cmd-video.active {
-    border-color: var(--danger-color);
-    box-shadow: 0 0 20px rgba(255, 23, 68, 0.4);
-    background: rgba(255, 23, 68, 0.15);
-}
-#cmd-video.active .toggle-state { color: var(--danger-color); }
-
-/* ==========================================
    RESPONSIVE DESIGN
    ========================================== */
 
