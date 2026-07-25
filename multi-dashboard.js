@@ -143,9 +143,9 @@ function injectAdvancedControls() {
     const matrix = document.querySelector('.card-grid');
     if (!matrix) return;
 
-    // 1. Time Activation Input (Using CSS Classes for Styling)
+    // 1. Time Activation Input
     const timeWrapper = document.createElement('div');
-    timeWrapper.className = 'time-control-wrapper'; // Uses new CSS
+    timeWrapper.className = 'time-control-wrapper';
     timeWrapper.innerHTML = `
         <label class="time-control-label">
             <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
@@ -182,7 +182,7 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM
+// REAL-TIME DATA STREAM (FIXED MEDIA PLAYERS)
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
@@ -190,6 +190,7 @@ function initializeTelemetryStream(uid) {
         if (!snapshot.exists()) return;
         const data = snapshot.val();
 
+        // Battery Level
         if (document.getElementById('battery-text')) {
             document.getElementById('battery-text').textContent = 
                 data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
@@ -198,6 +199,7 @@ function initializeTelemetryStream(uid) {
             if(bar) bar.style.width = `${data.batteryPercentage || 0}%`;
         }
 
+        // GPS Coordinates
         if (document.getElementById('latitude-text') && data.latitude != null) {
             document.getElementById('latitude-text').textContent = parseFloat(data.latitude).toFixed(6);
             document.getElementById('longitude-text').textContent = parseFloat(data.longitude).toFixed(6);
@@ -206,15 +208,48 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // Camera Image Update with Cache Busting
-        if (data.lastPhotoUrl) {
+        // ✅ FIXED: Listen for Image Updates (Matches Android DB path)
+        if (data.last_photo_url) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
             if (img && placeholder) {
                 placeholder.style.display = "none";
                 img.style.display = "block";
-                // Add timestamp to force browser to reload image even if URL is same
-                img.src = data.lastPhotoUrl + (data.lastPhotoUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+                img.src = data.last_photo_url + "?t=" + Date.now(); // Cache buster
+            }
+        }
+
+        // ✅ NEW: Listen for Video Updates
+        if (data.last_video_url) {
+            let videoContainer = document.getElementById('video-preview-container');
+            if (!videoContainer) {
+                videoContainer = document.createElement('div');
+                videoContainer.id = 'video-preview-container';
+                videoContainer.style.marginTop = "15px";
+                videoContainer.innerHTML = `<video controls style="width:100%; border-radius:6px; border:1px solid var(--border-color);"></video>`;
+                document.querySelector('.viewport-canvas-wrapper').after(videoContainer);
+            }
+            const videoEl = videoContainer.querySelector('video');
+            if (videoEl.src !== data.last_video_url) {
+                videoEl.src = data.last_video_url;
+                videoEl.load();
+            }
+        }
+
+        // ✅ NEW: Listen for Audio Updates
+        if (data.last_audio_url) {
+            let audioContainer = document.getElementById('audio-preview-container');
+            if (!audioContainer) {
+                audioContainer = document.createElement('div');
+                audioContainer.id = 'audio-preview-container';
+                audioContainer.style.marginTop = "15px";
+                audioContainer.innerHTML = `<audio controls style="width:100%; border-radius:6px; border:1px solid var(--border-color);"></audio>`;
+                document.querySelector('.viewport-canvas-wrapper').after(audioContainer);
+            }
+            const audioEl = audioContainer.querySelector('audio');
+            if (audioEl.src !== data.last_audio_url) {
+                audioEl.src = data.last_audio_url;
+                audioEl.load();
             }
         }
     });
