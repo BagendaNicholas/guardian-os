@@ -47,7 +47,7 @@ const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
 onAuthStateChanged(auth, (user) => {
     if (user && user.email?.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
         currentUser = user;
-        console.log("👤 Operator logged in:", user.email);
+        console.log(" Operator logged in:", user.email);
         loadAllDevices();
     } else {
         console.log("⛔ Access denied - not authorized operator");
