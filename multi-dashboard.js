@@ -59,8 +59,6 @@ onAuthStateChanged(auth, (user) => {
 // LOAD DEVICES FROM /devices STRUCTURE
 // ==========================================
 function loadAllDevices() {
-    console.log("📱 Loading devices...");
-    
     const devicesRef = ref(database, 'devices');
     onValue(devicesRef, (snapshot) => {
         allDevices = [];
@@ -70,7 +68,6 @@ function loadAllDevices() {
             
             Object.keys(data).forEach(deviceUid => {
                 const deviceData = data[deviceUid];
-                // Use identity.custom_name if available, otherwise fallback
                 const name = deviceData.identity?.custom_name || deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`;
                 
                 allDevices.push({
@@ -78,20 +75,15 @@ function loadAllDevices() {
                     name: name,
                     battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
                     lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000 // 5 min threshold
+                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000
                 });
             });
             
             renderDevicesList();
-            
-            if (allDevices.length > 0 && !selectedDevice) {
-                selectDevice(allDevices[0].uid);
-            }
+            if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
         } else {
             showNoDeviceAlert();
         }
-    }, (error) => {
-        console.error("❌ Error loading devices:", error);
     });
 }
 
@@ -117,9 +109,8 @@ function renderDevicesList() {
         devicesList.appendChild(deviceItem);
     });
     
-    if (allDevices.length === 0) {
-        showNoDeviceAlert();
-    } else {
+    if (allDevices.length === 0) showNoDeviceAlert();
+    else {
         noDeviceAlert.style.display = 'none';
         deviceDashboard.style.display = 'block';
     }
@@ -134,13 +125,9 @@ function selectDevice(deviceUid) {
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
     
-    // Inject new controls if not already present
     injectAdvancedControls();
 
-    // Clean up old listeners
-    Object.keys(deviceListeners).forEach(key => {
-        off(deviceListeners[key]);
-    });
+    Object.keys(deviceListeners).forEach(key => off(deviceListeners[key]));
     deviceListeners = {};
     
     loadDeviceData(deviceUid);
@@ -151,23 +138,19 @@ function selectDevice(deviceUid) {
 // INJECT ADVANCED CONTROLS (Time & Media)
 // ==========================================
 function injectAdvancedControls() {
-    if (document.getElementById('cmd-audio')) return; // Already injected
+    if (document.getElementById('cmd-audio')) return; 
 
     const matrix = document.querySelector('.card-grid');
     if (!matrix) return;
 
-    // 1. Time Activation Input
+    // 1. Time Activation Input (Using CSS Classes for Styling)
     const timeWrapper = document.createElement('div');
-    timeWrapper.style.gridColumn = "1 / -1";
-    timeWrapper.style.marginTop = "10px";
-    timeWrapper.style.padding = "10px";
-    timeWrapper.style.background = "#1a1a1a";
-    timeWrapper.style.borderRadius = "5px";
+    timeWrapper.className = 'time-control-wrapper'; // Uses new CSS
     timeWrapper.innerHTML = `
-        <label style="color:#00E5FF; font-size:11px; letter-spacing:1px; display:block; margin-bottom:5px;">
+        <label class="time-control-label">
             <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
         </label>
-        <input type="time" id="time-setter" style="width:100%; background:#000; border:1px solid #333; color:#fff; padding:8px; font-family:'Orbitron';">
+        <input type="time" id="time-setter">
     `;
     matrix.parentElement.insertBefore(timeWrapper, matrix.nextSibling);
 
@@ -223,14 +206,15 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // Camera Image Update
+        // Camera Image Update with Cache Busting
         if (data.lastPhotoUrl) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
             if (img && placeholder) {
                 placeholder.style.display = "none";
                 img.style.display = "block";
-                img.src = data.lastPhotoUrl + "?t=" + Date.now(); // Cache busting
+                // Add timestamp to force browser to reload image even if URL is same
+                img.src = data.lastPhotoUrl + (data.lastPhotoUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
             }
         }
     });
@@ -256,7 +240,6 @@ function initializeCommandStateListeners(uid) {
         // Update Time Input if it exists
         const timeInput = document.getElementById('time-setter');
         if (timeInput && cmd.activation_time) {
-            // Only update if not currently focused to avoid typing interference
             if (document.activeElement !== timeInput) {
                 timeInput.value = cmd.activation_time;
             }
