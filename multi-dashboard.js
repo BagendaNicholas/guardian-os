@@ -29,14 +29,8 @@ let selectedDevice = null;
 let allDevices = [];
 let deviceListeners = {};
 
-// ✅ NEW: Local state tracking for trigger buttons to prevent UI flickering
-let localTriggerState = {
-    record_audio: false,
-    record_video: false,
-    cameraCapture: false
-};
-
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
+const TARGET_DEVICE_UID = "6dGvVsLXCYePuqRZVat2sc6ytG3";
 
 // ==========================================
 // DOM Elements
@@ -47,6 +41,14 @@ const devicesList = document.getElementById('devices-list');
 const deviceCount = document.getElementById('device-count');
 const logoutBtn = document.getElementById('btn-logout');
 const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
+
+// Command Buttons
+const cmdFlashlight = document.getElementById('cmd-flashlight');
+const cmdAlarm = document.getElementById('cmd-alarm');
+const cmdLock = document.getElementById('cmd-lock');
+const cmdCapture = document.getElementById('cmd-capture');
+const cmdAudio = document.getElementById('cmd-audio');
+const cmdVideo = document.getElementById('cmd-video');
 
 // ==========================================
 // INITIALIZATION
@@ -129,9 +131,6 @@ function renderDevicesList() {
 function selectDevice(deviceUid) {
     selectedDevice = deviceUid;
     
-    // ✅ RESET LOCAL TRIGGER STATE WHEN SWITCHING DEVICES
-    localTriggerState = { record_audio: false, record_video: false, cameraCapture: false };
-    
     renderDevicesList();
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
@@ -169,14 +168,14 @@ function injectAdvancedControls() {
     const audioBtn = document.createElement('button');
     audioBtn.id = 'cmd-audio';
     audioBtn.className = 'matrix-btn toggle-btn';
-    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span><span class="toggle-state">OFF</span>`;
+    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span>`;
     matrix.appendChild(audioBtn);
 
     // 3. Video Record Button
     const videoBtn = document.createElement('button');
     videoBtn.id = 'cmd-video';
     videoBtn.className = 'matrix-btn toggle-btn';
-    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span><span class="toggle-state">OFF</span>`;
+    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span>`;
     matrix.appendChild(videoBtn);
 }
 
@@ -193,24 +192,18 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM (FIXED MEDIA PLAYERS)
+// REAL-TIME DATA STREAM (MATCHES WORKING DASHBOARD)
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
     const listener = onValue(statusRef, (snapshot) => {
-        // ✅ FIXED: Handle when status node doesn't exist yet
         if (!snapshot.exists()) {
-            console.warn("⚠️ Status node not yet created for device:", uid);
+            console.warn("⚠️ Status node not found for device:", uid);
             return;
         }
         const data = snapshot.val();
 
-        console.log('📡 Received telemetry data:', {
-            battery: data.batteryPercentage,
-            last_photo_url: data.last_photo_url,
-            last_video_url: data.last_video_url,
-            last_audio_url: data.last_audio_url
-        });
+        console.log('📡 Received telemetry data:', data);
 
         // Battery Level
         if (document.getElementById('battery-text')) {
@@ -230,21 +223,28 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // ✅ FIXED: Listen for Photo/Camera Updates
-        if (data.last_photo_url) {
+        // ✅ PHOTO/CAMERA CAPTURE (Match working dashboard naming)
+        const photoUrl = data.lastPhotoUrl || data.last_photo_url;
+        if (photoUrl) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
             if (img && placeholder) {
-                console.log('📸 Updating camera preview:', data.last_photo_url);
+                console.log('📸 Updating camera preview:', photoUrl);
                 placeholder.style.display = "none";
                 img.style.display = "block";
-                img.src = data.last_photo_url + "?t=" + Date.now(); // Cache buster
+                img.src = photoUrl + "?t=" + Date.now();
+                
+                const timestamp = document.getElementById('captureTimestamp');
+                if (timestamp) {
+                    timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
+                }
             }
         }
 
-        // ✅ FIXED: Listen for Video Updates
-        if (data.last_video_url) {
-            console.log('🎬 Updating video preview:', data.last_video_url);
+        // ✅ VIDEO (Support both naming conventions)
+        const videoUrl = data.lastVideoUrl || data.last_video_url;
+        if (videoUrl) {
+            console.log('🎬 Updating video preview:', videoUrl);
             let videoContainer = document.getElementById('video-preview-container');
             if (!videoContainer) {
                 videoContainer = document.createElement('div');
@@ -256,15 +256,16 @@ function initializeTelemetryStream(uid) {
                 if (wrapper) wrapper.after(videoContainer);
             }
             const videoEl = videoContainer.querySelector('video');
-            if (videoEl && videoEl.src !== data.last_video_url) {
-                videoEl.src = data.last_video_url;
+            if (videoEl && videoEl.src !== videoUrl) {
+                videoEl.src = videoUrl;
                 videoEl.load();
             }
         }
 
-        // ✅ FIXED: Listen for Audio Updates
-        if (data.last_audio_url) {
-            console.log('🎵 Updating audio preview:', data.last_audio_url);
+        // ✅ AUDIO (Support both naming conventions)
+        const audioUrl = data.lastAudioUrl || data.last_audio_url;
+        if (audioUrl) {
+            console.log('🎵 Updating audio preview:', audioUrl);
             let audioContainer = document.getElementById('audio-preview-container');
             if (!audioContainer) {
                 audioContainer = document.createElement('div');
@@ -276,8 +277,8 @@ function initializeTelemetryStream(uid) {
                 if (wrapper) wrapper.after(audioContainer);
             }
             const audioEl = audioContainer.querySelector('audio');
-            if (audioEl && audioEl.src !== data.last_audio_url) {
-                audioEl.src = data.last_audio_url;
+            if (audioEl && audioEl.src !== audioUrl) {
+                audioEl.src = audioUrl;
                 audioEl.load();
             }
         }
@@ -286,26 +287,35 @@ function initializeTelemetryStream(uid) {
 }
 
 // ==========================================
-// COMMAND STATE LISTENERS (UPDATED LOGIC)
+// COMMAND STATE LISTENERS (SIMPLIFIED)
 // ==========================================
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
     const listener = onValue(commandsRef, (snapshot) => {
         const cmd = snapshot.val() || {};
         
-        // ✅ PERSISTENT TOGGLES: Sync visual state directly from DB
-        toggleButtonVisualState('cmd-flashlight', cmd.flashlight);
-        toggleButtonVisualState('cmd-alarm', cmd.alarm);
-        toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
-
-        // ✅ TRIGGER BUTTONS: Only sync if local state matches DB (prevents flicker)
-        // If DB says false but local says true, we ignore it (phone is processing)
-        if (cmd.record_audio === localTriggerState.record_audio) {
-            toggleButtonVisualState('cmd-audio', cmd.record_audio);
+        // ✅ PERSISTENT TOGGLES
+        toggleButtonVisualState(cmdFlashlight, cmd.flashlight);
+        toggleButtonVisualState(cmdAlarm, cmd.alarm);
+        toggleButtonVisualState(cmdLock, cmd.emergencyLock);
+        
+        // ✅ TRIGGER BUTTONS
+        if (cmdCapture) {
+            const label = cmdCapture.querySelector('span');
+            cmdCapture.classList.toggle("active", !!cmd.cameraCapture);
+            if (label) label.innerText = cmd.cameraCapture ? "CAPTURING..." : "CAMERA CAPTURE";
         }
         
-        if (cmd.record_video === localTriggerState.record_video) {
-            toggleButtonVisualState('cmd-video', cmd.record_video);
+        if (cmdAudio) {
+            cmdAudio.classList.toggle("active", !!cmd.record_audio);
+            const stateEl = cmdAudio.querySelector('.toggle-state');
+            if (stateEl) stateEl.textContent = cmd.record_audio ? 'ON' : 'OFF';
+        }
+        
+        if (cmdVideo) {
+            cmdVideo.classList.toggle("active", !!cmd.record_video);
+            const stateEl = cmdVideo.querySelector('.toggle-state');
+            if (stateEl) stateEl.textContent = cmd.record_video ? 'ON' : 'OFF';
         }
 
         // Update Time Input if it exists
@@ -320,69 +330,41 @@ function initializeCommandStateListeners(uid) {
 }
 
 // ==========================================
-// SETUP COMMAND EVENT LISTENERS (COMPLETELY REWRITTEN)
+// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED)
 // ==========================================
 function setupCommandListeners(deviceUid) {
-    // 1. STANDARD TOGGLE BUTTONS (Flashlight, Alarm, Lock)
-    // These stay ON until you manually turn them OFF
-    ['cmd-flashlight', 'cmd-alarm', 'cmd-lock'].forEach(btnId => {
-        const btn = document.getElementById(btnId);
-        if (btn) {
-            btn.onclick = () => {
-                const isCurrentlyActive = btn.classList.contains('active');
-                const newState = !isCurrentlyActive;
-                
-                // Map button ID to DB key
-                const dbKey = btnId === 'cmd-lock' ? 'emergencyLock' : btnId.replace('cmd-', '');
-                
-                sendRemoteCommand(deviceUid, dbKey, newState);
-                // UI updates automatically via initializeCommandStateListeners
-            };
+    // 1. STANDARD TOGGLE BUTTONS
+    cmdFlashlight?.addEventListener("click", () => {
+        const newState = !cmdFlashlight.classList.contains("active");
+        sendRemoteCommand(deviceUid, "flashlight", newState);
+    });
+
+    cmdAlarm?.addEventListener("click", () => {
+        const newState = !cmdAlarm.classList.contains("active");
+        sendRemoteCommand(deviceUid, "alarm", newState);
+    });
+
+    cmdLock?.addEventListener("click", () => {
+        const newState = !cmdLock.classList.contains("active");
+        if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
+            sendRemoteCommand(deviceUid, "emergencyLock", newState);
         }
     });
 
     // 2. TRIGGER BUTTONS (Camera, Audio, Video)
-    // These use local state tracking to prevent UI flicker when DB resets to false
-    const triggerButtons = {
-        'cmd-capture': 'cameraCapture',
-        'cmd-audio': 'record_audio',
-        'cmd-video': 'record_video'
-    };
+    cmdCapture?.addEventListener("click", () => {
+        console.log("📸 Camera Capture triggered");
+        sendRemoteCommand(deviceUid, "cameraCapture", true);
+    });
 
-    Object.keys(triggerButtons).forEach(btnId => {
-        const btn = document.getElementById(btnId);
-        if (btn) {
-            btn.onclick = () => {
-                const isCurrentlyActive = btn.classList.contains('active');
-                const newState = !isCurrentlyActive;
-                const dbKey = triggerButtons[btnId];
+    cmdAudio?.addEventListener("click", () => {
+        console.log("🎙️ Audio Record triggered");
+        sendRemoteCommand(deviceUid, "record_audio", true);
+    });
 
-                // ✅ UPDATE LOCAL STATE IMMEDIATELY
-                localTriggerState[dbKey] = newState;
-
-                // Send command to phone
-                sendRemoteCommand(deviceUid, dbKey, newState);
-
-                // Update UI immediately based on local state
-                toggleButtonVisualState(btnId, newState);
-
-                console.log(`🎬 Trigger activated: ${dbKey} = ${newState}`);
-
-                // ✅ AUTO-RESET LOGIC: If turning ON, auto-send FALSE after 15 seconds
-                // ⏱️ INCREASED TIMEOUT: Gives the phone enough time to record and upload
-                if (newState) {
-                    setTimeout(() => {
-                        // Only reset if user hasn't clicked again in the meantime
-                        if (localTriggerState[dbKey] === true) {
-                            localTriggerState[dbKey] = false;
-                            sendRemoteCommand(deviceUid, dbKey, false);
-                            toggleButtonVisualState(btnId, false);
-                            console.log(`⏱️ Auto-reset trigger: ${dbKey}`);
-                        }
-                    }, 15000); // ✅ CHANGED from 3000ms to 15000ms (15 seconds)
-                }
-            };
-        }
+    cmdVideo?.addEventListener("click", () => {
+        console.log("📹 Video Record triggered");
+        sendRemoteCommand(deviceUid, "record_video", true);
     });
 
     // 3. TIME SETTER
@@ -402,14 +384,9 @@ function sendRemoteCommand(deviceUid, commandName, value) {
     update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
 }
 
-function toggleButtonVisualState(btnId, active) {
-    const btn = document.getElementById(btnId);
+function toggleButtonVisualState(btn, active) {
     if (btn) {
         btn.classList.toggle('active', !!active);
-        const stateEl = btn.querySelector('.toggle-state');
-        if (stateEl) {
-            stateEl.textContent = active ? 'ON' : 'OFF';
-        }
     }
 }
 
@@ -424,4 +401,4 @@ if (logoutBtn) {
 
 if (refreshDevicesBtn) {
     refreshDevicesBtn.addEventListener('click', loadAllDevices);
-}
+    }
