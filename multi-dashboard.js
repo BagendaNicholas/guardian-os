@@ -128,7 +128,7 @@ function selectDevice(deviceUid) {
     
     injectAdvancedControls();
 
-    // Clean up old listeners to prevent duplicates
+    // Clean up old listeners
     Object.keys(deviceListeners).forEach(key => off(deviceListeners[key]));
     deviceListeners = {};
     
@@ -227,7 +227,6 @@ function initializeTelemetryStream(uid) {
         };
 
         // Priority: Photo > Video > Audio > Placeholder
-        // We use timestamps or URL changes to determine what's "newest"
         
         const photoUrl = data.lastPhotoUrl || data.last_photo_url;
         const videoUrl = data.lastVideoUrl || data.last_video_url;
@@ -245,7 +244,7 @@ function initializeTelemetryStream(uid) {
             activeMedia = true;
             console.log('📸 Displaying Photo');
         } 
-        // 2. Check Video (only if no photo or video is newer - simplified priority)
+        // 2. Check Video
         else if (videoUrl && video) {
             hideAll();
             if (video.src !== videoUrl) {
