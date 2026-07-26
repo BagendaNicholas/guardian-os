@@ -215,6 +215,7 @@ function initializeTelemetryStream(uid) {
         const img = document.getElementById('cameraPreviewFrame');
         const video = document.getElementById('mediaVideoPlayer');
         const audio = document.getElementById('mediaAudioPlayer');
+        const audioContainer = document.getElementById('audio-container'); // New container
         const placeholder = document.getElementById('mediaPlaceholderText');
         const timestamp = document.getElementById('captureTimestamp');
 
@@ -223,6 +224,7 @@ function initializeTelemetryStream(uid) {
             if(img) img.style.display = 'none';
             if(video) { video.style.display = 'none'; video.pause(); }
             if(audio) { audio.style.display = 'none'; audio.pause(); }
+            if(audioContainer) audioContainer.style.display = 'none';
             if(placeholder) placeholder.style.display = 'block';
         };
 
@@ -242,7 +244,7 @@ function initializeTelemetryStream(uid) {
             img.src = photoUrl + cacheBuster;
             img.style.display = 'block';
             activeMedia = true;
-            console.log('📸 Displaying Photo');
+            console.log(' Displaying Photo');
         } 
         // 2. Check Video
         else if (videoUrl && video) {
@@ -263,6 +265,7 @@ function initializeTelemetryStream(uid) {
                 audio.load();
             }
             audio.style.display = 'block';
+            if(audioContainer) audioContainer.style.display = 'block';
             activeMedia = true;
             console.log('🎵 Displaying Audio');
         }
