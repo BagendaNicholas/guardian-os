@@ -30,7 +30,6 @@ let allDevices = [];
 let deviceListeners = {};
 
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
-const TARGET_DEVICE_UID = "6dGvVsLXCYePuqRZVat2sc6ytG3";
 
 // ==========================================
 // DOM Elements
@@ -41,14 +40,6 @@ const devicesList = document.getElementById('devices-list');
 const deviceCount = document.getElementById('device-count');
 const logoutBtn = document.getElementById('btn-logout');
 const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
-
-// Command Buttons
-const cmdFlashlight = document.getElementById('cmd-flashlight');
-const cmdAlarm = document.getElementById('cmd-alarm');
-const cmdLock = document.getElementById('cmd-lock');
-const cmdCapture = document.getElementById('cmd-capture');
-const cmdAudio = document.getElementById('cmd-audio');
-const cmdVideo = document.getElementById('cmd-video');
 
 // ==========================================
 // INITIALIZATION
@@ -223,7 +214,7 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // ✅ PHOTO/CAMERA CAPTURE (Match working dashboard naming)
+        // ✅ PHOTO/CAMERA CAPTURE (Support both naming conventions)
         const photoUrl = data.lastPhotoUrl || data.last_photo_url;
         if (photoUrl) {
             const img = document.getElementById('cameraPreviewFrame');
@@ -295,27 +286,26 @@ function initializeCommandStateListeners(uid) {
         const cmd = snapshot.val() || {};
         
         // ✅ PERSISTENT TOGGLES
-        toggleButtonVisualState(cmdFlashlight, cmd.flashlight);
-        toggleButtonVisualState(cmdAlarm, cmd.alarm);
-        toggleButtonVisualState(cmdLock, cmd.emergencyLock);
+        toggleButtonVisualState('cmd-flashlight', cmd.flashlight);
+        toggleButtonVisualState('cmd-alarm', cmd.alarm);
+        toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
         
-        // ✅ TRIGGER BUTTONS
+        // ✅ TRIGGER BUTTONS - Simple visual state sync from DB
+        const cmdCapture = document.getElementById('cmd-capture');
         if (cmdCapture) {
             const label = cmdCapture.querySelector('span');
             cmdCapture.classList.toggle("active", !!cmd.cameraCapture);
             if (label) label.innerText = cmd.cameraCapture ? "CAPTURING..." : "CAMERA CAPTURE";
         }
         
+        const cmdAudio = document.getElementById('cmd-audio');
         if (cmdAudio) {
             cmdAudio.classList.toggle("active", !!cmd.record_audio);
-            const stateEl = cmdAudio.querySelector('.toggle-state');
-            if (stateEl) stateEl.textContent = cmd.record_audio ? 'ON' : 'OFF';
         }
         
+        const cmdVideo = document.getElementById('cmd-video');
         if (cmdVideo) {
             cmdVideo.classList.toggle("active", !!cmd.record_video);
-            const stateEl = cmdVideo.querySelector('.toggle-state');
-            if (stateEl) stateEl.textContent = cmd.record_video ? 'ON' : 'OFF';
         }
 
         // Update Time Input if it exists
@@ -330,42 +320,61 @@ function initializeCommandStateListeners(uid) {
 }
 
 // ==========================================
-// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED)
+// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED - MATCHES WORKING DASHBOARD)
 // ==========================================
 function setupCommandListeners(deviceUid) {
-    // 1. STANDARD TOGGLE BUTTONS
-    cmdFlashlight?.addEventListener("click", () => {
-        const newState = !cmdFlashlight.classList.contains("active");
-        sendRemoteCommand(deviceUid, "flashlight", newState);
-    });
+    // 1. STANDARD TOGGLE BUTTONS (Flashlight, Alarm, Lock)
+    const cmdFlashlight = document.getElementById('cmd-flashlight');
+    if (cmdFlashlight) {
+        cmdFlashlight.addEventListener("click", () => {
+            const newState = !cmdFlashlight.classList.contains("active");
+            sendRemoteCommand(deviceUid, "flashlight", newState);
+        });
+    }
 
-    cmdAlarm?.addEventListener("click", () => {
-        const newState = !cmdAlarm.classList.contains("active");
-        sendRemoteCommand(deviceUid, "alarm", newState);
-    });
+    const cmdAlarm = document.getElementById('cmd-alarm');
+    if (cmdAlarm) {
+        cmdAlarm.addEventListener("click", () => {
+            const newState = !cmdAlarm.classList.contains("active");
+            sendRemoteCommand(deviceUid, "alarm", newState);
+        });
+    }
 
-    cmdLock?.addEventListener("click", () => {
-        const newState = !cmdLock.classList.contains("active");
-        if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
-            sendRemoteCommand(deviceUid, "emergencyLock", newState);
-        }
-    });
+    const cmdLock = document.getElementById('cmd-lock');
+    if (cmdLock) {
+        cmdLock.addEventListener("click", () => {
+            const newState = !cmdLock.classList.contains("active");
+            if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
+                sendRemoteCommand(deviceUid, "emergencyLock", newState);
+            }
+        });
+    }
 
     // 2. TRIGGER BUTTONS (Camera, Audio, Video)
-    cmdCapture?.addEventListener("click", () => {
-        console.log("📸 Camera Capture triggered");
-        sendRemoteCommand(deviceUid, "cameraCapture", true);
-    });
+    // Simple approach: just send true, let Android handle reset
+    const cmdCapture = document.getElementById('cmd-capture');
+    if (cmdCapture) {
+        cmdCapture.addEventListener("click", () => {
+            console.log("📸 Camera Capture triggered");
+            sendRemoteCommand(deviceUid, "cameraCapture", true);
+        });
+    }
 
-    cmdAudio?.addEventListener("click", () => {
-        console.log("🎙️ Audio Record triggered");
-        sendRemoteCommand(deviceUid, "record_audio", true);
-    });
+    const cmdAudio = document.getElementById('cmd-audio');
+    if (cmdAudio) {
+        cmdAudio.addEventListener("click", () => {
+            console.log("🎙️ Audio Record triggered");
+            sendRemoteCommand(deviceUid, "record_audio", true);
+        });
+    }
 
-    cmdVideo?.addEventListener("click", () => {
-        console.log("📹 Video Record triggered");
-        sendRemoteCommand(deviceUid, "record_video", true);
-    });
+    const cmdVideo = document.getElementById('cmd-video');
+    if (cmdVideo) {
+        cmdVideo.addEventListener("click", () => {
+            console.log("📹 Video Record triggered");
+            sendRemoteCommand(deviceUid, "record_video", true);
+        });
+    }
 
     // 3. TIME SETTER
     document.getElementById('time-setter')?.addEventListener('change', (e) => {
@@ -384,7 +393,8 @@ function sendRemoteCommand(deviceUid, commandName, value) {
     update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
 }
 
-function toggleButtonVisualState(btn, active) {
+function toggleButtonVisualState(btnId, active) {
+    const btn = document.getElementById(btnId);
     if (btn) {
         btn.classList.toggle('active', !!active);
     }
@@ -401,4 +411,4 @@ if (logoutBtn) {
 
 if (refreshDevicesBtn) {
     refreshDevicesBtn.addEventListener('click', loadAllDevices);
-    }
+}
