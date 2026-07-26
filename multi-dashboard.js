@@ -159,14 +159,14 @@ function injectAdvancedControls() {
     const audioBtn = document.createElement('button');
     audioBtn.id = 'cmd-audio';
     audioBtn.className = 'matrix-btn toggle-btn';
-    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span>`;
+    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span><span class="toggle-state">OFF</span>`;
     matrix.appendChild(audioBtn);
 
     // 3. Video Record Button
     const videoBtn = document.createElement('button');
     videoBtn.id = 'cmd-video';
     videoBtn.className = 'matrix-btn toggle-btn';
-    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span>`;
+    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span><span class="toggle-state">OFF</span>`;
     matrix.appendChild(videoBtn);
 }
 
@@ -183,7 +183,7 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM (MATCHES WORKING DASHBOARD)
+// REAL-TIME DATA STREAM (FIXED IMAGE DISPLAY)
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
@@ -214,16 +214,21 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // ✅ PHOTO/CAMERA CAPTURE (Support both naming conventions)
+        // ✅ PHOTO/CAMERA CAPTURE (Support both naming conventions AND data URLs)
         const photoUrl = data.lastPhotoUrl || data.last_photo_url;
         if (photoUrl) {
             const img = document.getElementById('cameraPreviewFrame');
             const placeholder = document.getElementById('cameraPlaceholderText');
             if (img && placeholder) {
-                console.log('📸 Updating camera preview:', photoUrl);
+                console.log('📸 Updating camera preview');
                 placeholder.style.display = "none";
                 img.style.display = "block";
-                img.src = photoUrl + "?t=" + Date.now();
+                // ✅ Support data URLs and regular URLs
+                if (photoUrl.startsWith('data:')) {
+                    img.src = photoUrl; // Data URL, no cache buster needed
+                } else {
+                    img.src = photoUrl + "?t=" + Date.now(); // Regular URL with cache buster
+                }
                 
                 const timestamp = document.getElementById('captureTimestamp');
                 if (timestamp) {
@@ -278,35 +283,22 @@ function initializeTelemetryStream(uid) {
 }
 
 // ==========================================
-// COMMAND STATE LISTENERS (SIMPLIFIED)
+// COMMAND STATE LISTENERS (SIMPLIFIED WITH VISUAL FEEDBACK)
 // ==========================================
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
     const listener = onValue(commandsRef, (snapshot) => {
         const cmd = snapshot.val() || {};
         
-        // ✅ PERSISTENT TOGGLES
-        toggleButtonVisualState('cmd-flashlight', cmd.flashlight);
-        toggleButtonVisualState('cmd-alarm', cmd.alarm);
-        toggleButtonVisualState('cmd-lock', cmd.emergencyLock);
+        // ✅ PERSISTENT TOGGLES - Show ON/OFF state clearly
+        updateButtonState('cmd-flashlight', cmd.flashlight);
+        updateButtonState('cmd-alarm', cmd.alarm);
+        updateButtonState('cmd-lock', cmd.emergencyLock);
         
-        // ✅ TRIGGER BUTTONS - Simple visual state sync from DB
-        const cmdCapture = document.getElementById('cmd-capture');
-        if (cmdCapture) {
-            const label = cmdCapture.querySelector('span');
-            cmdCapture.classList.toggle("active", !!cmd.cameraCapture);
-            if (label) label.innerText = cmd.cameraCapture ? "CAPTURING..." : "CAMERA CAPTURE";
-        }
-        
-        const cmdAudio = document.getElementById('cmd-audio');
-        if (cmdAudio) {
-            cmdAudio.classList.toggle("active", !!cmd.record_audio);
-        }
-        
-        const cmdVideo = document.getElementById('cmd-video');
-        if (cmdVideo) {
-            cmdVideo.classList.toggle("active", !!cmd.record_video);
-        }
+        // ✅ TRIGGER BUTTONS - Show current state
+        updateButtonState('cmd-capture', cmd.cameraCapture);
+        updateButtonState('cmd-audio', cmd.record_audio);
+        updateButtonState('cmd-video', cmd.record_video);
 
         // Update Time Input if it exists
         const timeInput = document.getElementById('time-setter');
@@ -320,7 +312,7 @@ function initializeCommandStateListeners(uid) {
 }
 
 // ==========================================
-// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED - MATCHES WORKING DASHBOARD)
+// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED)
 // ==========================================
 function setupCommandListeners(deviceUid) {
     // 1. STANDARD TOGGLE BUTTONS (Flashlight, Alarm, Lock)
@@ -328,6 +320,7 @@ function setupCommandListeners(deviceUid) {
     if (cmdFlashlight) {
         cmdFlashlight.addEventListener("click", () => {
             const newState = !cmdFlashlight.classList.contains("active");
+            console.log("💡 Flashlight:", newState ? "ON" : "OFF");
             sendRemoteCommand(deviceUid, "flashlight", newState);
         });
     }
@@ -336,6 +329,7 @@ function setupCommandListeners(deviceUid) {
     if (cmdAlarm) {
         cmdAlarm.addEventListener("click", () => {
             const newState = !cmdAlarm.classList.contains("active");
+            console.log("🔔 Alarm:", newState ? "ON" : "OFF");
             sendRemoteCommand(deviceUid, "alarm", newState);
         });
     }
@@ -344,14 +338,14 @@ function setupCommandListeners(deviceUid) {
     if (cmdLock) {
         cmdLock.addEventListener("click", () => {
             const newState = !cmdLock.classList.contains("active");
-            if (confirm(newState ? "Initialize Lockdown?" : "Deactivate Lockdown?")) {
+            if (confirm(newState ? "🔒 Initialize Lockdown?" : "🔓 Deactivate Lockdown?")) {
+                console.log("🔒 Emergency Lock:", newState ? "ON" : "OFF");
                 sendRemoteCommand(deviceUid, "emergencyLock", newState);
             }
         });
     }
 
     // 2. TRIGGER BUTTONS (Camera, Audio, Video)
-    // Simple approach: just send true, let Android handle reset
     const cmdCapture = document.getElementById('cmd-capture');
     if (cmdCapture) {
         cmdCapture.addEventListener("click", () => {
@@ -393,10 +387,31 @@ function sendRemoteCommand(deviceUid, commandName, value) {
     update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
 }
 
-function toggleButtonVisualState(btnId, active) {
+/**
+ * ✅ IMPROVED: Update button visual state with clear ON/OFF indicator
+ */
+function updateButtonState(btnId, isActive) {
     const btn = document.getElementById(btnId);
-    if (btn) {
-        btn.classList.toggle('active', !!active);
+    if (!btn) return;
+    
+    // Update active class
+    btn.classList.toggle('active', !!isActive);
+    
+    // Update text label with ON/OFF state
+    const stateEl = btn.querySelector('.toggle-state');
+    if (stateEl) {
+        stateEl.textContent = isActive ? 'ON' : 'OFF';
+        stateEl.style.color = isActive ? '#00ff88' : '#666666';
+        stateEl.style.fontWeight = isActive ? 'bold' : 'normal';
+    }
+    
+    // Visual feedback: change button opacity and border
+    if (isActive) {
+        btn.style.borderColor = '#00ff88';
+        btn.style.opacity = '1';
+    } else {
+        btn.style.borderColor = '#333333';
+        btn.style.opacity = '0.7';
     }
 }
 
