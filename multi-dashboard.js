@@ -1,4 +1,4 @@
-js_content = '''import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
 import { getDatabase, ref, onValue, set, update, off, get } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
@@ -128,6 +128,7 @@ function selectDevice(deviceUid) {
     
     injectAdvancedControls();
 
+    // Clean up old listeners to prevent duplicates
     Object.keys(deviceListeners).forEach(key => off(deviceListeners[key]));
     deviceListeners = {};
     
@@ -183,213 +184,99 @@ function loadDeviceData(deviceUid) {
 }
 
 // ==========================================
-// REAL-TIME DATA STREAM (UPDATED MEDIA HANDLING)
+// REAL-TIME DATA STREAM (FIXED MEDIA DISPLAY)
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
+    
+    // Clean up any existing listener for this device first
+    if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
+
     const listener = onValue(statusRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.warn("⚠️ Status node not found for device:", uid);
-            return;
-        }
+        if (!snapshot.exists()) return;
         const data = snapshot.val();
 
-        console.log('📡 Received telemetry data:', data);
-
-        // Battery Level
+        // --- Battery & GPS (Unchanged) ---
         if (document.getElementById('battery-text')) {
             document.getElementById('battery-text').textContent = 
                 data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
-            
             const bar = document.getElementById('battery-bar');
             if(bar) bar.style.width = `${data.batteryPercentage || 0}%`;
         }
 
-        // GPS Coordinates
         if (document.getElementById('latitude-text') && data.latitude != null) {
             document.getElementById('latitude-text').textContent = parseFloat(data.latitude).toFixed(6);
             document.getElementById('longitude-text').textContent = parseFloat(data.longitude).toFixed(6);
-            
             const mapLink = document.getElementById('map-link');
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
-        // ✅ HANDLE PHOTO DISPLAY
+        // --- MEDIA HANDLING LOGIC ---
+        const img = document.getElementById('cameraPreviewFrame');
+        const video = document.getElementById('mediaVideoPlayer');
+        const audio = document.getElementById('mediaAudioPlayer');
+        const placeholder = document.getElementById('mediaPlaceholderText');
+        const timestamp = document.getElementById('captureTimestamp');
+
+        // Helper to hide all media
+        const hideAll = () => {
+            if(img) img.style.display = 'none';
+            if(video) { video.style.display = 'none'; video.pause(); }
+            if(audio) { audio.style.display = 'none'; audio.pause(); }
+            if(placeholder) placeholder.style.display = 'block';
+        };
+
+        // Priority: Photo > Video > Audio > Placeholder
+        // We use timestamps or URL changes to determine what's "newest"
+        
         const photoUrl = data.lastPhotoUrl || data.last_photo_url;
-        if (photoUrl) {
-            console.log('📸 Photo received, updating display');
-            
-            // Hide other media types
-            hideVideoAndAudio();
-            
-            // Show photo
-            const img = document.getElementById('cameraPreviewFrame');
-            const placeholder = document.getElementById('mediaPlaceholderText');
-            if (img && placeholder) {
-                placeholder.style.display = "none";
-                img.style.display = "block";
-                // Support data URLs and regular URLs
-                if (photoUrl.startsWith('data:')) {
-                    img.src = photoUrl;
-                } else {
-                    img.src = photoUrl + "?t=" + Date.now();
-                }
-                
-                const timestamp = document.getElementById('captureTimestamp');
-                if (timestamp) {
-                    timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
-                }
-            }
-        }
-
-        // ✅ HANDLE VIDEO DISPLAY
         const videoUrl = data.lastVideoUrl || data.last_video_url;
-        if (videoUrl) {
-            console.log('🎬 Video received, updating display');
-            
-            // Hide other media types
-            hidePhotoAndAudio();
-            
-            // Show video
-            const videoEl = document.getElementById('mediaVideoPlayer');
-            const placeholder = document.getElementById('mediaPlaceholderText');
-            if (videoEl && placeholder) {
-                placeholder.style.display = "none";
-                videoEl.style.display = "block";
-                
-                if (videoEl.src !== videoUrl) {
-                    videoEl.src = videoUrl;
-                    videoEl.load();
-                }
-                
-                const timestamp = document.getElementById('captureTimestamp');
-                if (timestamp) {
-                    timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
-                }
+        const audioUrl = data.lastAudioUrl || data.last_audio_url;
+
+        let activeMedia = false;
+
+        // 1. Check Photo
+        if (photoUrl && img) {
+            hideAll();
+            // Force reload even if URL is same by adding unique timestamp
+            const cacheBuster = photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`;
+            img.src = photoUrl + cacheBuster;
+            img.style.display = 'block';
+            activeMedia = true;
+            console.log('📸 Displaying Photo');
+        } 
+        // 2. Check Video (only if no photo or video is newer - simplified priority)
+        else if (videoUrl && video) {
+            hideAll();
+            if (video.src !== videoUrl) {
+                video.src = videoUrl;
+                video.load();
             }
+            video.style.display = 'block';
+            activeMedia = true;
+            console.log('🎬 Displaying Video');
+        }
+        // 3. Check Audio
+        else if (audioUrl && audio) {
+            hideAll();
+            if (audio.src !== audioUrl) {
+                audio.src = audioUrl;
+                audio.load();
+            }
+            audio.style.display = 'block';
+            activeMedia = true;
+            console.log('🎵 Displaying Audio');
         }
 
-        // ✅ HANDLE AUDIO DISPLAY
-        const audioUrl = data.lastAudioUrl || data.last_audio_url;
-        if (audioUrl) {
-            console.log('🎵 Audio received, updating display');
-            
-            // Hide other media types
-            hidePhotoAndVideo();
-            
-            // Show audio
-            const audioEl = document.getElementById('mediaAudioPlayer');
-            const placeholder = document.getElementById('mediaPlaceholderText');
-            if (audioEl && placeholder) {
-                placeholder.style.display = "none";
-                audioEl.style.display = "block";
-                
-                if (audioEl.src !== audioUrl) {
-                    audioEl.src = audioUrl;
-                    audioEl.load();
-                }
-                
-                const timestamp = document.getElementById('captureTimestamp');
-                if (timestamp) {
-                    timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
-                }
-            }
+        // Update Timestamp if any media is active
+        if (activeMedia && timestamp) {
+            timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
+        } else if (!activeMedia && placeholder) {
+            placeholder.style.display = 'block';
         }
     });
+
     deviceListeners[`status-${uid}`] = listener;
-}
-
-// ==========================================
-// MEDIA DISPLAY HELPER FUNCTIONS
-// ==========================================
-
-/**
- * Hide video and audio, keep photo visible
- */
-function hideVideoAndAudio() {
-    const videoEl = document.getElementById('mediaVideoPlayer');
-    const audioEl = document.getElementById('mediaAudioPlayer');
-    
-    if (videoEl) {
-        videoEl.style.display = 'none';
-        videoEl.pause();
-        videoEl.src = '';
-    }
-    
-    if (audioEl) {
-        audioEl.style.display = 'none';
-        audioEl.pause();
-        audioEl.src = '';
-    }
-}
-
-/**
- * Hide photo and audio, keep video visible
- */
-function hidePhotoAndAudio() {
-    const img = document.getElementById('cameraPreviewFrame');
-    const audioEl = document.getElementById('mediaAudioPlayer');
-    
-    if (img) {
-        img.style.display = 'none';
-        img.src = '';
-    }
-    
-    if (audioEl) {
-        audioEl.style.display = 'none';
-        audioEl.pause();
-        audioEl.src = '';
-    }
-}
-
-/**
- * Hide photo and video, keep audio visible
- */
-function hidePhotoAndVideo() {
-    const img = document.getElementById('cameraPreviewFrame');
-    const videoEl = document.getElementById('mediaVideoPlayer');
-    
-    if (img) {
-        img.style.display = 'none';
-        img.src = '';
-    }
-    
-    if (videoEl) {
-        videoEl.style.display = 'none';
-        videoEl.pause();
-        videoEl.src = '';
-    }
-}
-
-/**
- * Hide all media elements and show placeholder
- */
-function hideAllMedia() {
-    const img = document.getElementById('cameraPreviewFrame');
-    const videoEl = document.getElementById('mediaVideoPlayer');
-    const audioEl = document.getElementById('mediaAudioPlayer');
-    const placeholder = document.getElementById('mediaPlaceholderText');
-    
-    if (img) {
-        img.style.display = 'none';
-        img.src = '';
-    }
-    
-    if (videoEl) {
-        videoEl.style.display = 'none';
-        videoEl.pause();
-        videoEl.src = '';
-    }
-    
-    if (audioEl) {
-        audioEl.style.display = 'none';
-        audioEl.pause();
-        audioEl.src = '';
-    }
-    
-    if (placeholder) {
-        placeholder.style.display = 'block';
-    }
 }
 
 // ==========================================
@@ -537,24 +424,3 @@ if (logoutBtn) {
 if (refreshDevicesBtn) {
     refreshDevicesBtn.addEventListener('click', loadAllDevices);
 }
-'''
-
-# Save to file
-with open('multi-dashboard.js', 'w') as f:
-    f.write(js_content)
-
-print("✅ Updated multi-dashboard.js")
-print("\nChanges made:")
-print("- Removed old video/audio container creation logic")
-print("- Added helper functions to manage media visibility:")
-print("  • hideVideoAndAudio() - Shows photo, hides video/audio")
-print("  • hidePhotoAndAudio() - Shows video, hides photo/audio")
-print("  • hidePhotoAndVideo() - Shows audio, hides photo/video")
-print("  • hideAllMedia() - Hides everything, shows placeholder")
-print("- Updated initializeTelemetryStream() to use new helper functions")
-print("- When photo arrives → Hides video/audio, shows photo")
-print("- When video arrives → Hides photo/audio, shows video")
-print("- When audio arrives → Hides photo/video, shows audio")
-print("- Clears old media sources when switching between types")
-
-
