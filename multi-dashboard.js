@@ -68,19 +68,14 @@ function loadAllDevices() {
             
             Object.keys(data).forEach(deviceUid => {
                 const deviceData = data[deviceUid];
-                
-                // ✅ FIX 1: Get Model from identity node
-                const model = deviceData.identity?.model || "Unknown Device";
                 const name = deviceData.identity?.custom_name || deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`;
                 
                 allDevices.push({
                     uid: deviceUid,
-                    // Display as: Nicholas's Phone (SM-A065F)
-                    name: `${name} (${model})`, 
+                    name: name,
                     battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
                     lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000,
-                    networkType: deviceData.status?.networkType || "UNKNOWN" // Capture network type for later use
+                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000
                 });
             });
             
@@ -141,4 +136,321 @@ function selectDevice(deviceUid) {
     setupCommandListeners(deviceUid);
 }
 
-// =================================
+// ==========================================
+// INJECT ADVANCED CONTROLS (Time & Media)
+// ==========================================
+function injectAdvancedControls() {
+    if (document.getElementById('cmd-audio')) return; 
+
+    const matrix = document.querySelector('.card-grid');
+    if (!matrix) return;
+
+    // 1. Time Activation Input
+    const timeWrapper = document.createElement('div');
+    timeWrapper.className = 'time-control-wrapper';
+    timeWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
+        </label>
+        <input type="time" id="time-setter">
+    `;
+    matrix.parentElement.insertBefore(timeWrapper, matrix.nextSibling);
+
+    // 2. Audio Record Button
+    const audioBtn = document.createElement('button');
+    audioBtn.id = 'cmd-audio';
+    audioBtn.className = 'matrix-btn toggle-btn';
+    audioBtn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i><span>AUDIO RECORD</span><span class="toggle-state">OFF</span>`;
+    matrix.appendChild(audioBtn);
+
+    // 3. Video Record Button
+    const videoBtn = document.createElement('button');
+    videoBtn.id = 'cmd-video';
+    videoBtn.className = 'matrix-btn toggle-btn';
+    videoBtn.innerHTML = `<i class="fa-solid fa-video"></i><span>VIDEO RECORD</span><span class="toggle-state">OFF</span>`;
+    matrix.appendChild(videoBtn);
+}
+
+// ==========================================
+// LOAD DEVICE DATA
+// ==========================================
+function loadDeviceData(deviceUid) {
+    const device = allDevices.find(d => d.uid === deviceUid);
+    if (!device) return;
+    
+    document.getElementById('selected-device-name').textContent = device.name;
+    initializeTelemetryStream(deviceUid);
+    initializeCommandStateListeners(deviceUid);
+}
+
+// ==========================================
+// REAL-TIME DATA STREAM (WITH UPLOAD STATE TRACKING)
+// ==========================================
+function initializeTelemetryStream(uid) {
+    const statusRef = ref(database, `devices/${uid}/status`);
+    
+    // Clean up any existing listener for this device first
+    if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
+
+    const listener = onValue(statusRef, (snapshot) => {
+        if (!snapshot.exists()) return;
+        const data = snapshot.val();
+
+        // --- Battery & GPS (Unchanged) ---
+        if (document.getElementById('battery-text')) {
+            document.getElementById('battery-text').textContent = 
+                data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+            const bar = document.getElementById('battery-bar');
+            if(bar) bar.style.width = `${data.batteryPercentage || 0}%`;
+        }
+
+        if (document.getElementById('latitude-text') && data.latitude != null) {
+            document.getElementById('latitude-text').textContent = parseFloat(data.latitude).toFixed(6);
+            document.getElementById('longitude-text').textContent = parseFloat(data.longitude).toFixed(6);
+            const mapLink = document.getElementById('map-link');
+            if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
+        }
+
+        // ✅ NEW: MEDIA UPLOAD STATE TRACKING
+        // Updates button text to REC/UPD... based on Android app status
+        const uploadState = data.media_upload_state || "idle";
+        const audioBtn = document.getElementById('cmd-audio');
+        const videoBtn = document.getElementById('cmd-video');
+
+        if (audioBtn) {
+            const stateEl = audioBtn.querySelector('.toggle-state');
+            if (uploadState === "recording") {
+                audioBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
+            } else if (uploadState === "uploading") {
+                audioBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'UPD...'; stateEl.style.color = '#00e5ff'; }
+            }
+        }
+
+        if (videoBtn) {
+            const stateEl = videoBtn.querySelector('.toggle-state');
+            if (uploadState === "recording") {
+                videoBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
+            } else if (uploadState === "uploading") {
+                videoBtn.classList.add('active');
+                if(stateEl) { stateEl.textContent = 'UPD...'; stateEl.style.color = '#00e5ff'; }
+            }
+        }
+
+        // --- MEDIA HANDLING LOGIC ---
+        const img = document.getElementById('cameraPreviewFrame');
+        const video = document.getElementById('mediaVideoPlayer');
+        const audio = document.getElementById('mediaAudioPlayer');
+        const audioContainer = document.getElementById('audio-container');
+        const placeholder = document.getElementById('mediaPlaceholderText');
+        const timestamp = document.getElementById('captureTimestamp');
+
+        // Helper to hide all media
+        const hideAll = () => {
+            if(img) img.style.display = 'none';
+            if(video) { video.style.display = 'none'; video.pause(); }
+            if(audio) { audio.style.display = 'none'; audio.pause(); }
+            if(audioContainer) audioContainer.style.display = 'none';
+            if(placeholder) placeholder.style.display = 'block';
+        };
+
+        // Priority: Photo > Video > Audio > Placeholder
+        
+        const photoUrl = data.lastPhotoUrl || data.last_photo_url;
+        const videoUrl = data.lastVideoUrl || data.last_video_url;
+        const audioUrl = data.lastAudioUrl || data.last_audio_url;
+
+        let activeMedia = false;
+
+        // 1. Check Photo
+        if (photoUrl && img) {
+            hideAll();
+            // Force reload even if URL is same by adding unique timestamp
+            const cacheBuster = photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`;
+            img.src = photoUrl + cacheBuster;
+            img.style.display = 'block';
+            activeMedia = true;
+            console.log('📸 Displaying Photo');
+        } 
+        // 2. Check Video
+        else if (videoUrl && video) {
+            hideAll();
+            if (video.src !== videoUrl) {
+                video.src = videoUrl;
+                video.load();
+            }
+            video.style.display = 'block';
+            activeMedia = true;
+            console.log('🎬 Displaying Video');
+        }
+        // 3. Check Audio
+        else if (audioUrl && audio) {
+            hideAll();
+            if (audio.src !== audioUrl) {
+                audio.src = audioUrl;
+                audio.load();
+            }
+            audio.style.display = 'block';
+            if(audioContainer) audioContainer.style.display = 'block';
+            activeMedia = true;
+            console.log('🎵 Displaying Audio');
+        }
+
+        // Update Timestamp if any media is active
+        if (activeMedia && timestamp) {
+            timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
+        } else if (!activeMedia && placeholder) {
+            placeholder.style.display = 'block';
+        }
+    });
+
+    deviceListeners[`status-${uid}`] = listener;
+}
+
+// ==========================================
+// COMMAND STATE LISTENERS (SIMPLIFIED WITH VISUAL FEEDBACK)
+// ==========================================
+function initializeCommandStateListeners(uid) {
+    const commandsRef = ref(database, `devices/${uid}/commands`);
+    const listener = onValue(commandsRef, (snapshot) => {
+        const cmd = snapshot.val() || {};
+        
+        // ✅ PERSISTENT TOGGLES - Show ON/OFF state clearly
+        updateButtonState('cmd-flashlight', cmd.flashlight);
+        updateButtonState('cmd-alarm', cmd.alarm);
+        updateButtonState('cmd-lock', cmd.emergencyLock);
+        
+        // ✅ TRIGGER BUTTONS - Show current state
+        updateButtonState('cmd-capture', cmd.cameraCapture);
+        updateButtonState('cmd-audio', cmd.record_audio);
+        updateButtonState('cmd-video', cmd.record_video);
+
+        // Update Time Input if it exists
+        const timeInput = document.getElementById('time-setter');
+        if (timeInput && cmd.activation_time) {
+            if (document.activeElement !== timeInput) {
+                timeInput.value = cmd.activation_time;
+            }
+        }
+    });
+    deviceListeners[`commands-${uid}`] = listener;
+}
+
+// ==========================================
+// SETUP COMMAND EVENT LISTENERS (SIMPLIFIED)
+// ==========================================
+function setupCommandListeners(deviceUid) {
+    // 1. STANDARD TOGGLE BUTTONS (Flashlight, Alarm, Lock)
+    const cmdFlashlight = document.getElementById('cmd-flashlight');
+    if (cmdFlashlight) {
+        cmdFlashlight.addEventListener("click", () => {
+            const newState = !cmdFlashlight.classList.contains("active");
+            console.log("💡 Flashlight:", newState ? "ON" : "OFF");
+            sendRemoteCommand(deviceUid, "flashlight", newState);
+        });
+    }
+
+    const cmdAlarm = document.getElementById('cmd-alarm');
+    if (cmdAlarm) {
+        cmdAlarm.addEventListener("click", () => {
+            const newState = !cmdAlarm.classList.contains("active");
+            console.log("🔔 Alarm:", newState ? "ON" : "OFF");
+            sendRemoteCommand(deviceUid, "alarm", newState);
+        });
+    }
+
+    const cmdLock = document.getElementById('cmd-lock');
+    if (cmdLock) {
+        cmdLock.addEventListener("click", () => {
+            const newState = !cmdLock.classList.contains("active");
+            if (confirm(newState ? "🔒 Initialize Lockdown?" : "🔓 Deactivate Lockdown?")) {
+                console.log("🔒 Emergency Lock:", newState ? "ON" : "OFF");
+                sendRemoteCommand(deviceUid, "emergencyLock", newState);
+            }
+        });
+    }
+
+    // 2. TRIGGER BUTTONS (Camera, Audio, Video)
+    const cmdCapture = document.getElementById('cmd-capture');
+    if (cmdCapture) {
+        cmdCapture.addEventListener("click", () => {
+            console.log("📸 Camera Capture triggered");
+            sendRemoteCommand(deviceUid, "cameraCapture", true);
+        });
+    }
+
+    const cmdAudio = document.getElementById('cmd-audio');
+    if (cmdAudio) {
+        cmdAudio.addEventListener("click", () => {
+            console.log("🎙️ Audio Record triggered");
+            sendRemoteCommand(deviceUid, "record_audio", true);
+        });
+    }
+
+    const cmdVideo = document.getElementById('cmd-video');
+    if (cmdVideo) {
+        cmdVideo.addEventListener("click", () => {
+            console.log("📹 Video Record triggered");
+            sendRemoteCommand(deviceUid, "record_video", true);
+        });
+    }
+
+    // 3. TIME SETTER
+    document.getElementById('time-setter')?.addEventListener('change', (e) => {
+        if (e.target.value) {
+            console.log(' Setting activation time:', e.target.value);
+            sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
+        }
+    });
+}
+
+// ==========================================
+// UTILITIES
+// ==========================================
+function sendRemoteCommand(deviceUid, commandName, value) {
+    console.log(`📤 Sending command: ${commandName} = ${value}`);
+    update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
+}
+
+/**
+ * ✅ IMPROVED: Update button visual state with clear ON/OFF indicator
+ */
+function updateButtonState(btnId, isActive) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    
+    // Update active class
+    btn.classList.toggle('active', !!isActive);
+    
+    // Update text label with ON/OFF state
+    const stateEl = btn.querySelector('.toggle-state');
+    if (stateEl) {
+        stateEl.textContent = isActive ? 'ON' : 'OFF';
+        stateEl.style.color = isActive ? '#00ff88' : '#666666';
+        stateEl.style.fontWeight = isActive ? 'bold' : 'normal';
+    }
+    
+    // Visual feedback: change button opacity and border
+    if (isActive) {
+        btn.style.borderColor = '#00ff88';
+        btn.style.opacity = '1';
+    } else {
+        btn.style.borderColor = '#333333';
+        btn.style.opacity = '0.7';
+    }
+}
+
+function showNoDeviceAlert() {
+    noDeviceAlert.style.display = 'flex';
+    deviceDashboard.style.display = 'none';
+}
+
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = './index.html'));
+}
+
+if (refreshDevicesBtn) {
+    refreshDevicesBtn.addEventListener('click', loadAllDevices);
+}
