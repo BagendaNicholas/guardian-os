@@ -68,14 +68,19 @@ function loadAllDevices() {
             
             Object.keys(data).forEach(deviceUid => {
                 const deviceData = data[deviceUid];
-                const name = deviceData.identity?.custom_name || deviceData.deviceName || `Device - ${deviceUid.substring(0, 8)}`;
+                
+                // ✅ FIX: Read model from identity node
+                const model = deviceData.identity?.model || "Unknown Model";
+                const customName = deviceData.identity?.custom_name || deviceData.deviceName || "Unknown Device";
                 
                 allDevices.push({
                     uid: deviceUid,
-                    name: name,
+                    // ✅ Shows: Nicholas's Phone (SM-A065F)
+                    name: `${customName} (${model})`, 
                     battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
                     lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000
+                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000,
+                    networkType: deviceData.status?.networkType || "UNKNOWN"
                 });
             });
             
@@ -86,7 +91,6 @@ function loadAllDevices() {
         }
     });
 }
-
 // ==========================================
 // RENDER DEVICES LIST
 // ==========================================
