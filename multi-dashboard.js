@@ -56,39 +56,98 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ==========================================
-// LOAD DEVICES FROM /devices STRUCTURE
+// REAL-TIME DATA STREAM (WITH EXACT LOCATION)
 // ==========================================
-function loadAllDevices() {
-    const devicesRef = ref(database, 'devices');
-    onValue(devicesRef, (snapshot) => {
-        allDevices = [];
-        
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            
-            Object.keys(data).forEach(deviceUid => {
-                const deviceData = data[deviceUid];
-                
-                // ✅ FIX: Read model from identity node
-                const model = deviceData.identity?.model || "Unknown Model";
-                const customName = deviceData.identity?.custom_name || deviceData.deviceName || "Unknown Device";
-                
-                allDevices.push({
-                    uid: deviceUid,
-                    // ✅ Shows: Nicholas's Phone (SM-A065F)
-                    name: `${customName} (${model})`, 
-                    battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
-                    lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000,
-                    networkType: deviceData.status?.networkType || "UNKNOWN"
-                });
-            });
-            
-            renderDevicesList();
-            if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
-        } else {
-            showNoDeviceAlert();
+function initializeTelemetryStream(uid) {
+    const statusRef = ref(database, `devices/${uid}/status`);
+    const locationRef = ref(database, `devices/${uid}/location`);
+    
+    // Clean up old listeners to prevent duplicates
+    if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
+    if (deviceListeners[`location-${uid}`]) off(deviceListeners[`location-${uid}`]);
+
+    // Helper function to update all dashboard elements
+    const updateDashboard = (statusData, locationData) => {
+        const data = statusData || {};
+        const loc = locationData || {};
+
+        // 1. Battery Level
+        if (document.getElementById('battery-text')) {
+            document.getElementById('battery-text').textContent = 
+                data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+            const bar = document.getElementById('battery-bar');
+            if(bar) bar.style.width = `${data.batteryPercentage || 0}%`;
         }
+
+        // 2. Network Protocol
+        if (document.getElementById('network-text')) {
+            const netType = data.networkType || "UNKNOWN";
+            document.getElementById('network-text').textContent = netType.toUpperCase();
+        }
+
+        // 3. Last Seen (Exact Place Name via Reverse Geocoding)
+        // Check status node first, then fall back to location node
+        const lat = data.latitude || loc.lat;
+        const lng = data.longitude || loc.lng;
+
+        if (lat != null && lng != null) {
+            // Update GPS Telemetry Card
+            if (document.getElementById('latitude-text')) {
+                document.getElementById('latitude-text').textContent = parseFloat(lat).toFixed(6);
+                document.getElementById('longitude-text').textContent = parseFloat(lng).toFixed(6);
+                
+                const mapLink = document.getElementById('map-link');
+                if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            }
+
+            // ✅ FETCH EXACT PLACE NAME
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+                .then(res => res.json())
+                .then(geoData => {
+                    const addr = geoData.address;
+                    // Combine city/town/village/suburb for exact location
+                    const placeName = addr.city || addr.town || addr.village || addr.suburb || "Unknown Location";
+                    const region = addr.state || addr.country || "";
+                    const timeStr = new Date().toLocaleTimeString();
+                    
+                    // Format: "Place Name, Region • Time"
+                    const displayText = region 
+                        ? `${placeName}, ${region} • ${timeStr}` 
+                        : `${placeName} • ${timeStr}`;
+                    
+                    if (document.getElementById('last-seen-text')) {
+                        document.getElementById('last-seen-text').textContent = displayText;
+                    }
+                })
+                .catch(e => {
+                    console.warn("⚠️ Geocoding failed:", e);
+                    // Fallback to just time if API fails
+                    if (document.getElementById('last-seen-text')) {
+                        document.getElementById('last-seen-text').textContent = new Date().toLocaleTimeString();
+                    }
+                });
+        } else {
+            // No location data available
+            if (document.getElementById('last-seen-text')) {
+                document.getElementById('last-seen-text').textContent = "--:--";
+            }
+        }
+    };
+
+    // Listen to Status Node (Battery, Network, etc.)
+    deviceListeners[`status-${uid}`] = onValue(statusRef, (snap) => {
+        // Fetch current location data to combine with status
+        get(locationRef).then(locSnap => {
+            updateDashboard(snap.val(), locSnap.val());
+        });
+    });
+
+    // Listen to Location Node (Real-time GPS updates)
+    deviceListeners[`location-${uid}`] = onValue(locationRef, (snap) => {
+        // Fetch current status data to combine with location
+        get(statusRef).then(statusSnap => {
+            updateDashboard(statusSnap.val(), snap.val());
+        });
     });
 }
 // ==========================================
