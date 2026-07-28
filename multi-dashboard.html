@@ -65,33 +65,41 @@
 
                 <div class="dashboard-grid-container">
 
-                    <!-- SYSTEM METRICS -->
+                   // ==========================================
+<!-- SYSTEM METRICS -->
                     <section class="crypto-card">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-microchip"></i> SYSTEM METRICS</h3>
                         </div>
                         <div class="card-body">
+                            <!-- Battery Level -->
                             <div class="metric-item">
                                 <span class="metric-label"><i class="fa-solid fa-battery-three-quarters"></i> BATTERY LEVEL</span>
                                 <span id="battery-text" class="metric-value">--%</span>
-                                <div id="battery-bar" class="battery-bar"></div>
+                                <div id="battery-bar" class="battery-bar" style="width: 0%;"></div>
                             </div>
+                            
+                            <!-- Network Protocol -->
                             <div class="metric-item">
                                 <span class="metric-label"><i class="fa-solid fa-wifi"></i> NETWORK PROTOCOL</span>
-                                <span id="network-text" class="metric-value">UNKNOWN</span>
+                                <span id="network-text" class="metric-value" style="color: #00e5ff;">UNKNOWN</span>
                             </div>
+                            
+                            <!-- Device State -->
                             <div class="metric-item">
                                 <span class="metric-label"><i class="fa-solid fa-mobile-screen-button"></i> DEVICE STATE</span>
                                 <span id="device-state-text" class="metric-value status-secure">SECURE</span>
                             </div>
-                            <div class="metric-item">
+                            
+                            <!-- Last Seen (Location + Time) -->
+                            <div class="metric-item" style="flex-direction: column; align-items: flex-start; gap: 4px;">
                                 <span class="metric-label"><i class="fa-solid fa-clock"></i> LAST SEEN</span>
-                                <span id="last-seen-text" class="metric-value">--:--</span>
+                                <span id="last-seen-text" class="metric-value" style="font-size: 12px; line-height: 1.4; word-break: break-word; color: #8a99ad;">
+                                    --:--
+                                </span>
                             </div>
                         </div>
-                    </section>
-
-                    <!-- GPS TELEMETRY -->
+                    </section>                    <!-- GPS TELEMETRY -->
                     <section class="crypto-card">
                         <div class="card-header">
                             <h3><i class="fa-solid fa-location-crosshairs"></i> GPS TELEMETRY</h3>
