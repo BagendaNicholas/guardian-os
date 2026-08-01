@@ -2,482 +2,404 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>GuardianOS Mansion - Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>GuardianOS Mansion</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            overflow: hidden; 
-            touch-action: none;
-            background: #000;
-        }
-        canvas { display: block; }
-        
+        body { overflow: hidden; touch-action: none; background: #000; }
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1; }
+
         /* UI Overlay */
-        #ui-layer {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            pointer-events: none;
-            z-index: 10;
+        #ui {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 10; pointer-events: none;
         }
-        
-        /* Title Card */
+        #ui > * { pointer-events: auto; }
+
         #info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            font-family: Arial, sans-serif;
-            background: rgba(30, 50, 60, 0.9);
-            padding: 15px 20px;
-            border-radius: 12px;
-            pointer-events: auto;
+            position: absolute; top: 20px; left: 20px;
+            color: white; font-family: Arial, sans-serif;
+            background: rgba(30,50,60,0.9);
+            padding: 15px 20px; border-radius: 12px;
             max-width: 280px;
         }
         #info h2 { font-size: 1.3em; margin-bottom: 5px; }
         #info p { font-size: 0.9em; opacity: 0.9; }
-        
-        /* Joystick Zone */
+
+        /* Joystick */
         #joystick-zone {
-            position: absolute;
-            bottom: 40px;
-            left: 40px;
-            width: 140px;
-            height: 140px;
+            position: absolute; bottom: 40px; left: 40px;
+            width: 140px; height: 140px;
             background: rgba(255,255,255,0.15);
             border: 2px solid rgba(255,255,255,0.3);
             border-radius: 50%;
-            pointer-events: auto;
-            touch-action: none;
         }
         #joystick-knob {
-            position: absolute;
-            width: 50px;
-            height: 50px;
+            position: absolute; width: 50px; height: 50px;
             background: rgba(255,255,255,0.7);
             border-radius: 50%;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            transition: none;
         }
-        
-        /* Look Zone (right side of screen) */
+
+        /* Look zone covers right half */
         #look-zone {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            height: 100%;
-            pointer-events: auto;
-            touch-action: none;
+            position: absolute; top: 0; right: 0;
+            width: 50%; height: 100%;
         }
-        
-        /* Action Buttons */
+
         .action-btn {
-            position: absolute;
-            width: 60px;
-            height: 60px;
+            position: absolute; width: 60px; height: 60px;
             background: rgba(255,255,255,0.25);
             border: 2px solid rgba(255,255,255,0.4);
-            border-radius: 50%;
-            color: white;
-            font-size: 1.5em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-            user-select: none;
-            -webkit-user-select: none;
+            border-radius: 50%; color: white;
+            font-size: 1.5em; display: flex;
+            align-items: center; justify-content: center;
+            user-select: none; -webkit-user-select: none;
         }
-        .action-btn:active {
-            background: rgba(255,255,255,0.5);
-        }
-        
-        #btn-enter {
-            bottom: 40px;
-            right: 40px;
-            background: rgba(76, 175, 80, 0.4);
-            border-color: rgba(76, 175, 80, 0.7);
-        }
-        
-        #btn-reset {
-            bottom: 120px;
-            right: 40px;
-            font-size: 1em;
-        }
-        
-        /* Instructions overlay */
-        #mobile-instructions {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
+        .action-btn:active { background: rgba(255,255,255,0.5); }
+        #btn-enter { bottom: 40px; right: 40px; background: rgba(76,175,80,0.4); border-color: rgba(76,175,80,0.7); }
+        #btn-reset { bottom: 120px; right: 40px; font-size: 1em; }
+
+        #instructions {
+            position: absolute; bottom: 10px; left: 50%;
             transform: translateX(-50%);
-            color: white;
-            font-family: Arial, sans-serif;
+            color: white; font-family: Arial, sans-serif;
             background: rgba(0,0,0,0.7);
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.8em;
-            text-align: center;
-            pointer-events: none;
+            padding: 8px 16px; border-radius: 20px;
+            font-size: 0.8em; text-align: center;
             white-space: nowrap;
         }
-        
-        /* Door interaction prompt */
+
         #door-prompt {
-            position: absolute;
-            top: 50%;
-            left: 50%;
+            position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
-            font-family: Arial, sans-serif;
+            color: white; font-family: Arial, sans-serif;
             background: rgba(0,0,0,0.8);
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1.1em;
-            display: none;
-            pointer-events: none;
+            padding: 12px 24px; border-radius: 8px;
+            font-size: 1.1em; display: none;
         }
     </style>
 </head>
 <body>
 
-<!-- UI Layer -->
-<div id="ui-layer">
+<div id="ui">
     <div id="info">
         <h2> GuardianOS Mansion</h2>
         <p>Welcome to your virtual home!</p>
     </div>
-    
-    <!-- Left Joystick for Movement -->
-    <div id="joystick-zone">
-        <div id="joystick-knob"></div>
-    </div>
-    
-    <!-- Right side for looking around -->
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
     <div id="look-zone"></div>
-    
-    <!-- Enter House Button -->
     <div class="action-btn" id="btn-enter">🚪</div>
-    
-    <!-- Reset Position Button -->
     <div class="action-btn" id="btn-reset">↩️</div>
-    
-    <!-- Instructions -->
-    <div id="mobile-instructions">
-        🕹️ Left: Move |  Right: Look | 🚪: Enter House
-    </div>
-    
-    <!-- Door proximity prompt -->
+    <div id="instructions">️ Left: Move | Right: Look | : Enter House</div>
     <div id="door-prompt">Tap 🚪 to enter!</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ===== THREE.JS SCENE SETUP =====
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87CEEB);
-scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+(function() {
+    "use strict";
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-document.body.insertBefore(renderer.domElement, document.getElementById('ui-layer'));
+    // ===== SCENE =====
+    var scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
 
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
-sunLight.position.set(50, 100, 50);
-sunLight.castShadow = true;
-sunLight.shadow.camera.left = -50;
-sunLight.shadow.camera.right = 50;
-sunLight.shadow.camera.top = 50;
-sunLight.shadow.camera.bottom = -50;
-scene.add(sunLight);
-
-// Materials
-const grassMat = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
-const roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-const wallMat = new THREE.MeshLambertMaterial({ color: 0xF5F5DC });
-const roofMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-const doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
-const windowMat = new THREE.MeshPhongMaterial({ color: 0xADD8E6, transparent: true, opacity: 0.6 });
-const fenceMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
-
-// Ground
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), grassMat);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-// Road
-const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 40), roadMat);
-road.rotation.x = -Math.PI / 2;
-road.position.set(0, 0.01, 25);
-road.receiveShadow = true;
-scene.add(road);
-
-// Fence
-function createFence(x, z, w, h) {
-    const f = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), fenceMat);
-    f.position.set(x, h/2, z);
-    f.castShadow = true;
-    scene.add(f);
-}
-createFence(-20, 30, 20, 2); createFence(20, 30, 20, 2);
-createFence(-30, 20, 2, 20); createFence(30, 20, 2, 20);
-createFence(-30, -10, 2, 20); createFence(30, -10, 2, 20);
-createFence(-20, -30, 20, 2); createFence(20, -30, 20, 2);
-
-// House Group
-const houseGroup = new THREE.Group();
-const hW = 16, hD = 12, hH = 5;
-
-// Walls
-const walls = new THREE.Mesh(new THREE.BoxGeometry(hW, hH, hD), wallMat);
-walls.position.y = hH / 2;
-walls.castShadow = true;
-walls.receiveShadow = true;
-houseGroup.add(walls);
-
-// Roof
-const roof = new THREE.Mesh(new THREE.ConeGeometry(12, 4, 4), roofMat);
-roof.position.y = hH + 2;
-roof.rotation.y = Math.PI / 4;
-roof.castShadow = true;
-houseGroup.add(roof);
-
-// Door (interactive!)
-const doorGeo = new THREE.BoxGeometry(2, 3.5, 0.3);
-const doorMesh = new THREE.Mesh(doorGeo, doorMat);
-doorMesh.position.set(0, 1.75, hD/2 + 0.15);
-doorMesh.castShadow = true;
-doorMesh.name = "door";
-houseGroup.add(doorMesh);
-
-// Windows
-function createWindow(x, y, z, ry = 0) {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.2), windowMat));
-    const fc = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-    [[0,1.1,0,2.4,0.2,0.3],[0,-1.1,0,2.4,0.2,0.3],[-1.1,0,0,0.2,2.4,0.3],[1.1,0,0,0.2,2.4,0.3]].forEach(p => {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(p[3],p[4],p[5]), fc);
-        m.position.set(p[0],p[1],p[2]);
-        g.add(m);
-    });
-    g.position.set(x,y,z);
-    g.rotation.y = ry;
-    return g;
-}
-houseGroup.add(createWindow(-4, 3, hD/2+0.1));
-houseGroup.add(createWindow(4, 3, hD/2+0.1));
-houseGroup.add(createWindow(-hW/2-0.1, 3, 0, Math.PI/2));
-houseGroup.add(createWindow(hW/2+0.1, 3, 0, Math.PI/2));
-
-// Interior floor
-const intFloor = new THREE.Mesh(new THREE.PlaneGeometry(hW-0.5, hD-0.5), new THREE.MeshLambertMaterial({color:0xDEB887}));
-intFloor.rotation.x = -Math.PI/2;
-intFloor.position.y = 0.01;
-houseGroup.add(intFloor);
-
-// Interior walls
-const iwMat = new THREE.MeshLambertMaterial({ color: 0xFFFACD });
-const lrWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, hH, hD/2), iwMat);
-lrWall.position.set(0, hH/2, -hD/4);
-houseGroup.add(lrWall);
-const brWall = new THREE.Mesh(new THREE.BoxGeometry(hW/2, hH, 0.3), iwMat);
-brWall.position.set(-hW/4, hH/2, hD/4);
-houseGroup.add(brWall);
-
-scene.add(houseGroup);
-
-// Trees
-function createTree(x, z) {
-    const t = new THREE.Group();
-    t.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,2,8), new THREE.MeshLambertMaterial({color:0x8B4513})), {position: new THREE.Vector3(0,1,0)}));
-    const l = new THREE.Mesh(new THREE.SphereGeometry(1.5,8,8), new THREE.MeshLambertMaterial({color:0x228B22}));
-    l.position.y = 3; l.castShadow = true;
-    t.add(l);
-    t.position.set(x,0,z);
-    return t;
-}
-[-15,-15,15,-15,-20,5,20,5,-10,20,10,20].reduce((arr,v,i)=>{if(i%2===0)arr.push([v]);else{arr[arr.length-1].push(v);return arr;}return arr;},[]).forEach(p=>scene.add(createTree(p[0],p[1])));
-
-// Camera start
-camera.position.set(0, 2, 35);
-
-// ===== MOBILE TOUCH CONTROLS =====
-
-let moveX = 0, moveZ = 0; // joystick output (-1 to 1)
-let lookYaw = 0, lookPitch = 0;
-let isInsideHouse = false;
-
-// --- JOYSTICK (Left side) ---
-const joyZone = document.getElementById('joystick-zone');
-const joyKnob = document.getElementById('joystick-knob');
-let joyActive = false;
-let joyCenter = { x: 0, y: 0 };
-const joyRadius = 70; // half of zone width
-
-joyZone.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    joyActive = true;
-    const rect = joyZone.getBoundingClientRect();
-    joyCenter.x = rect.left + rect.width / 2;
-    joyCenter.y = rect.top + rect.height / 2;
-    updateJoystick(e.touches[0]);
-}, { passive: false });
-
-joyZone.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (joyActive) updateJoystick(e.touches[0]);
-}, { passive: false });
-
-joyZone.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    joyActive = false;
-    moveX = 0; moveZ = 0;
-    joyKnob.style.transform = `translate(-50%, -50%)`;
-});
-
-function updateJoystick(touch) {
-    let dx = touch.clientX - joyCenter.x;
-    let dy = touch.clientY - joyCenter.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist > joyRadius) {
-        dx = (dx / dist) * joyRadius;
-        dy = (dy / dist) * joyRadius;
-    }
-    joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    moveX = dx / joyRadius;   // left/right
-    moveZ = dy / joyRadius;   // forward/back (negative = forward)
-}
-
-// --- LOOK (Right side swipe) ---
-const lookZone = document.getElementById('look-zone');
-let lastLookX = 0, lastLookY = 0;
-
-lookZone.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    lastLookX = e.touches[0].clientX;
-    lastLookY = e.touches[0].clientY;
-}, { passive: false });
-
-lookZone.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    const dx = e.touches[0].clientX - lastLookX;
-    const dy = e.touches[0].clientY - lastLookY;
-    lookYaw -= dx * 0.005;
-    lookPitch -= dy * 0.005;
-    lookPitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, lookPitch));
-    lastLookX = e.touches[0].clientX;
-    lastLookY = e.touches[0].clientY;
-}, { passive: false });
-
-// Apply camera rotation
-function updateCameraRotation() {
-    const euler = new THREE.Euler(lookPitch, lookYaw, 0, 'YXZ');
-    camera.quaternion.setFromEuler(euler);
-}
-
-// --- ENTER HOUSE BUTTON ---
-const btnEnter = document.getElementById('btn-enter');
-const doorPrompt = document.getElementById('door-prompt');
-
-btnEnter.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    toggleEnterHouse();
-});
-btnEnter.addEventListener('click', toggleEnterHouse);
-
-function toggleEnterHouse() {
-    const distToDoor = camera.position.distanceTo(new THREE.Vector3(0, 2, hD/2 + 2));
-    
-    if (!isInsideHouse && distToDoor < 8) {
-        // Enter house
-        isInsideHouse = true;
-        camera.position.set(0, 2, 2);
-        lookYaw = Math.PI; // face outward initially
-        lookPitch = 0;
-        doorPrompt.style.display = 'none';
-    } else if (isInsideHouse) {
-        // Exit house
-        isInsideHouse = false;
-        camera.position.set(0, 2, hD/2 + 5);
-        lookYaw = 0;
-        lookPitch = 0;
-    }
-}
-
-// --- RESET BUTTON ---
-document.getElementById('btn-reset').addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    resetPosition();
-});
-document.getElementById('btn-reset').addEventListener('click', resetPosition);
-
-function resetPosition() {
-    isInsideHouse = false;
-    camera.position.set(0, 2, 35);
-    lookYaw = 0;
-    lookPitch = 0;
-    moveX = 0; moveZ = 0;
-    joyKnob.style.transform = `translate(-50%, -50%)`;
-}
-
-// ===== GAME LOOP =====
-const clock = new THREE.Clock();
-const speed = 8;
-
-function animate() {
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
-    
-    // Apply movement from joystick
-    if (moveX !== 0 || moveZ !== 0) {
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        forward.y = 0;
-        forward.normalize();
-        
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        right.y = 0;
-        right.normalize();
-        
-        camera.position.addScaledVector(forward, -moveZ * speed * delta);
-        camera.position.addScaledVector(right, moveX * speed * delta);
-        camera.position.y = 2; // keep eye level
-        
-        // Boundaries
-        camera.position.x = Math.max(-28, Math.min(28, camera.position.x));
-        camera.position.z = Math.max(-28, Math.min(38, camera.position.z));
-    }
-    
-    updateCameraRotation();
-    
-    // Show door prompt when near
-    const distToDoor = camera.position.distanceTo(new THREE.Vector3(0, 2, hD/2 + 2));
-    if (!isInsideHouse && distToDoor < 8) {
-        doorPrompt.style.display = 'block';
-        btnEnter.style.borderColor = 'rgba(76,175,80,0.9)';
-    } else {
-        doorPrompt.style.display = 'none';
-        btnEnter.style.borderColor = 'rgba(255,255,255,0.4)';
-    }
-    
-    renderer.render(scene, camera);
-}
-
-// Resize handler
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    var renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    document.body.insertBefore(renderer.domElement, document.getElementById('ui'));
 
-animate();
+    // ===== LIGHTING =====
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(50, 100, 50);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    scene.add(sun);
+
+    // ===== MATERIALS =====
+    var grassMat = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
+    var roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    var wallMat = new THREE.MeshLambertMaterial({ color: 0xF5F5DC });
+    var roofMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    var doorMat = new THREE.MeshLambertMaterial({ color: 0x654321 });
+    var winMat = new THREE.MeshPhongMaterial({ color: 0xADD8E6, transparent: true, opacity: 0.6 });
+    var fenceMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+    var intFloorMat = new THREE.MeshLambertMaterial({ color: 0xDEB887 });
+    var intWallMat = new THREE.MeshLambertMaterial({ color: 0xFFFACD });
+    var frameMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    var trunkMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    var leafMat = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+
+    // ===== GROUND =====
+    var ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), grassMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ===== ROAD =====
+    var road = new THREE.Mesh(new THREE.PlaneGeometry(8, 40), roadMat);
+    road.rotation.x = -Math.PI / 2;
+    road.position.set(0, 0.01, 25);
+    road.receiveShadow = true;
+    scene.add(road);
+
+    // ===== FENCE =====
+    function addFence(x, z, w, h) {
+        var f = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), fenceMat);
+        f.position.set(x, h/2, z);
+        f.castShadow = true;
+        scene.add(f);
+    }
+    addFence(-20, 30, 20, 2); addFence(20, 30, 20, 2);
+    addFence(-30, 20, 2, 20);  addFence(30, 20, 2, 20);
+    addFence(-30, -10, 2, 20); addFence(30, -10, 2, 20);
+    addFence(-20, -30, 20, 2); addFence(20, -30, 20, 2);
+
+    // ===== HOUSE =====
+    var houseGroup = new THREE.Group();
+    var HW = 16, HD = 12, HH = 5;
+
+    // Walls
+    var walls = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, HD), wallMat);
+    walls.position.y = HH / 2;
+    walls.castShadow = true;
+    walls.receiveShadow = true;
+    houseGroup.add(walls);
+
+    // Roof
+    var roof = new THREE.Mesh(new THREE.ConeGeometry(12, 4, 4), roofMat);
+    roof.position.y = HH + 2;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    houseGroup.add(roof);
+
+    // Door
+    var doorMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 3.5, 0.3), doorMat);
+    doorMesh.position.set(0, 1.75, HD/2 + 0.15);
+    doorMesh.castShadow = true;
+    houseGroup.add(doorMesh);
+
+    // Windows helper
+    function makeWindow(x, y, z, ry) {
+        var g = new THREE.Group();
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.2), winMat));
+        var positions = [
+            [0, 1.1, 0, 2.4, 0.2, 0.3],
+            [0, -1.1, 0, 2.4, 0.2, 0.3],
+            [-1.1, 0, 0, 0.2, 2.4, 0.3],
+            [1.1, 0, 0, 0.2, 2.4, 0.3]
+        ];
+        positions.forEach(function(p) {
+            var m = new THREE.Mesh(new THREE.BoxGeometry(p[3], p[4], p[5]), frameMat);
+            m.position.set(p[0], p[1], p[2]);
+            g.add(m);
+        });
+        g.position.set(x, y, z);
+        if (ry) g.rotation.y = ry;
+        return g;
+    }
+
+    houseGroup.add(makeWindow(-4, 3, HD/2 + 0.1, 0));
+    houseGroup.add(makeWindow(4, 3, HD/2 + 0.1, 0));
+    houseGroup.add(makeWindow(-HW/2 - 0.1, 3, 0, Math.PI/2));
+    houseGroup.add(makeWindow(HW/2 + 0.1, 3, 0, Math.PI/2));
+
+    // Interior floor
+    var intFloor = new THREE.Mesh(new THREE.PlaneGeometry(HW - 0.5, HD - 0.5), intFloorMat);
+    intFloor.rotation.x = -Math.PI / 2;
+    intFloor.position.y = 0.01;
+    houseGroup.add(intFloor);
+
+    // Interior walls
+    var lrWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, HH, HD/2), intWallMat);
+    lrWall.position.set(0, HH/2, -HD/4);
+    houseGroup.add(lrWall);
+
+    var brWall = new THREE.Mesh(new THREE.BoxGeometry(HW/2, HH, 0.3), intWallMat);
+    brWall.position.set(-HW/4, HH/2, HD/4);
+    houseGroup.add(brWall);
+
+    scene.add(houseGroup);
+
+    // ===== TREES =====
+    function makeTree(x, z) {
+        var t = new THREE.Group();
+        var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 8), trunkMat);
+        trunk.position.y = 1;
+        trunk.castShadow = true;
+        t.add(trunk);
+        var leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), leafMat);
+        leaves.position.y = 3;
+        leaves.castShadow = true;
+        t.add(leaves);
+        t.position.set(x, 0, z);
+        return t;
+    }
+    [[-15,-15],[15,-15],[-20,5],[20,5],[-10,20],[10,20]].forEach(function(p) {
+        scene.add(makeTree(p[0], p[1]));
+    });
+
+    // ===== CAMERA START =====
+    camera.position.set(0, 2, 35);
+
+    // ===== STATE =====
+    var moveX = 0, moveZ = 0;
+    var lookYaw = 0, lookPitch = 0;
+    var isInside = false;
+    var speed = 8;
+
+    // ===== JOYSTICK =====
+    var joyZone = document.getElementById('joystick-zone');
+    var joyKnob = document.getElementById('joystick-knob');
+    var joyActive = false;
+    var joyCX = 0, joyCY = 0;
+    var joyR = 70;
+
+    joyZone.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        joyActive = true;
+        var r = joyZone.getBoundingClientRect();
+        joyCX = r.left + r.width / 2;
+        joyCY = r.top + r.height / 2;
+        updateJoy(e.touches[0]);
+    }, { passive: false });
+
+    joyZone.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        if (joyActive) updateJoy(e.touches[0]);
+    }, { passive: false });
+
+    joyZone.addEventListener('touchend', function(e) {
+        e.preventDefault();
+        joyActive = false;
+        moveX = 0; moveZ = 0;
+        joyKnob.style.transform = 'translate(-50%, -50%)';
+    }, { passive: false });
+
+    function updateJoy(touch) {
+        var dx = touch.clientX - joyCX;
+        var dy = touch.clientY - joyCY;
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist > joyR) { dx = (dx/dist)*joyR; dy = (dy/dist)*joyR; }
+        joyKnob.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+        moveX = dx / joyR;
+        moveZ = dy / joyR;
+    }
+
+    // ===== LOOK (right side swipe) =====
+    var lookZone = document.getElementById('look-zone');
+    var lastLX = 0, lastLY = 0;
+
+    lookZone.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        lastLX = e.touches[0].clientX;
+        lastLY = e.touches[0].clientY;
+    }, { passive: false });
+
+    lookZone.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        var dx = e.touches[0].clientX - lastLX;
+        var dy = e.touches[0].clientY - lastLY;
+        lookYaw -= dx * 0.005;
+        lookPitch -= dy * 0.005;
+        lookPitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, lookPitch));
+        lastLX = e.touches[0].clientX;
+        lastLY = e.touches[0].clientY;
+    }, { passive: false });
+
+    // ===== ENTER / EXIT =====
+    var btnEnter = document.getElementById('btn-enter');
+    var doorPrompt = document.getElementById('door-prompt');
+
+    function toggleEnter() {
+        var doorPos = new THREE.Vector3(0, 2, HD/2 + 2);
+        var dist = camera.position.distanceTo(doorPos);
+        if (!isInside && dist < 8) {
+            isInside = true;
+            camera.position.set(0, 2, 2);
+            lookYaw = Math.PI;
+            lookPitch = 0;
+            doorPrompt.style.display = 'none';
+        } else if (isInside) {
+            isInside = false;
+            camera.position.set(0, 2, HD/2 + 5);
+            lookYaw = 0;
+            lookPitch = 0;
+        }
+    }
+
+    btnEnter.addEventListener('touchstart', function(e) { e.preventDefault(); toggleEnter(); });
+    btnEnter.addEventListener('click', toggleEnter);
+
+    // ===== RESET =====
+    document.getElementById('btn-reset').addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        isInside = false;
+        camera.position.set(0, 2, 35);
+        lookYaw = 0; lookPitch = 0;
+        moveX = 0; moveZ = 0;
+        joyKnob.style.transform = 'translate(-50%, -50%)';
+    });
+    document.getElementById('btn-reset').addEventListener('click', function() {
+        isInside = false;
+        camera.position.set(0, 2, 35);
+        lookYaw = 0; lookPitch = 0;
+        moveX = 0; moveZ = 0;
+        joyKnob.style.transform = 'translate(-50%, -50%)';
+    });
+
+    // ===== ANIMATION LOOP =====
+    var clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        var delta = clock.getDelta();
+
+        // Movement
+        if (moveX !== 0 || moveZ !== 0) {
+            var fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            fwd.y = 0; fwd.normalize();
+            var rt = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            rt.y = 0; rt.normalize();
+            camera.position.addScaledVector(fwd, -moveZ * speed * delta);
+            camera.position.addScaledVector(rt, moveX * speed * delta);
+            camera.position.y = 2;
+            camera.position.x = Math.max(-28, Math.min(28, camera.position.x));
+            camera.position.z = Math.max(-28, Math.min(38, camera.position.z));
+        }
+
+        // Camera rotation
+        var euler = new THREE.Euler(lookPitch, lookYaw, 0, 'YXZ');
+        camera.quaternion.setFromEuler(euler);
+
+        // Door proximity
+        var dDist = camera.position.distanceTo(new THREE.Vector3(0, 2, HD/2 + 2));
+        if (!isInside && dDist < 8) {
+            doorPrompt.style.display = 'block';
+            btnEnter.style.borderColor = 'rgba(76,175,80,0.9)';
+        } else {
+            doorPrompt.style.display = 'none';
+            btnEnter.style.borderColor = 'rgba(255,255,255,0.4)';
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    // Resize
+    window.addEventListener('resize', function() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+})();
 </script>
 </body>
 </html>
