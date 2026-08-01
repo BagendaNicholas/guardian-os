@@ -28,7 +28,7 @@
         /* UI Overlay */
         #ui {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            z-index: 10; pointer-events: none; display: none; /* Hidden until loaded */
+            z-index: 10; pointer-events: none; display: none; 
         }
         #ui > * { pointer-events: auto; }
 
@@ -161,13 +161,12 @@
     <div id="look-zone"></div>
     
     <div class="action-btn" id="btn-interact">🚪</div>
-    <div class="action-btn" id="btn-reset">↩️</div>
+    <div class="action-btn" id="btn-reset">️</div>
     
     <div id="instructions">🕹️ Left: Move | Right: Look | 🔘: Interact</div>
     <div id="interact-prompt">Tap to interact!</div>
 </div>
 
-<!-- Three.js with fallback -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // Fallback if CDN fails
@@ -177,7 +176,6 @@ if (typeof THREE === 'undefined') {
     err.style.display = 'block';
     err.innerHTML = '❌ Failed to load 3D engine.<br>Please check your internet connection and refresh.';
 } else {
-    // Initialize when DOM is ready
     window.addEventListener('DOMContentLoaded', initGame);
 }
 
@@ -212,7 +210,7 @@ function initGame() {
         var sun = new THREE.DirectionalLight(0xffffff, 0.9);
         sun.position.set(50, 100, 50);
         sun.castShadow = true;
-        sun.shadow.mapSize.width = 1024; // Reduced for mobile performance
+        sun.shadow.mapSize.width = 1024; 
         sun.shadow.mapSize.height = 1024;
         sun.shadow.camera.near = 0.5;
         sun.shadow.camera.far = 200;
@@ -368,7 +366,7 @@ function initGame() {
 
         scene.add(houseGroup);
 
-        // ===== FURNITURE =====
+        // ===== FURNITURE (FIXED POSITION ASSIGNMENT) =====
         var garageFloor = new THREE.Mesh(new THREE.PlaneGeometry(11, 13), M.floorTile);
         garageFloor.rotation.x = -Math.PI/2;
         garageFloor.position.set(14.5, 0.02, 0);
@@ -377,12 +375,18 @@ function initGame() {
         garageLight.position.set(14.5, 5, 0);
         houseGroup.add(garageLight);
 
+        // Sofa - FIXED: Using .position.set() instead of Object.assign
+        var sofaBase = new THREE.Mesh(new THREE.BoxGeometry(4,0.8,2), M.sofa);
+        sofaBase.position.set(0, 0.4, 0);
+        var sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4,1.2,0.4), M.sofa);
+        sofaBack.position.set(0, 1, -0.8);
         var sofa = new THREE.Group();
-        sofa.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(4,0.8,2), M.sofa), {position: new THREE.Vector3(0,0.4,0)}));
-        sofa.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(4,1.2,0.4), M.sofa), {position: new THREE.Vector3(0,1,-0.8)}));
+        sofa.add(sofaBase);
+        sofa.add(sofaBack);
         sofa.position.set(-5, 0, 3);
         sofa.rotation.y = Math.PI;
         houseGroup.add(sofa);
+
         var tvStand = new THREE.Mesh(new THREE.BoxGeometry(3,1,1), new THREE.MeshLambertMaterial({color:0x3E2723}));
         tvStand.position.set(-5, 0.5, -2.5); tvStand.castShadow=true;
         houseGroup.add(tvStand);
@@ -393,13 +397,24 @@ function initGame() {
         lrLight.position.set(-5, 5, 0);
         houseGroup.add(lrLight);
 
+        // Bed - FIXED: Using .position.set()
+        var bedFrame = new THREE.Mesh(new THREE.BoxGeometry(3,0.6,4), new THREE.MeshLambertMaterial({color:0x5D4037}));
+        bedFrame.position.set(0, 0.3, 0);
+        var bedMattress = new THREE.Mesh(new THREE.BoxGeometry(2.8,0.4,3.8), M.bed);
+        bedMattress.position.set(0, 0.8, 0);
+        var pillow1 = new THREE.Mesh(new THREE.BoxGeometry(1,0.3,0.6), M.pillow);
+        pillow1.position.set(-0.7, 1.15, -1.5);
+        var pillow2 = new THREE.Mesh(new THREE.BoxGeometry(1,0.3,0.6), M.pillow);
+        pillow2.position.set(0.7, 1.15, -1.5);
+        
         var bed = new THREE.Group();
-        bed.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(3,0.6,4), new THREE.MeshLambertMaterial({color:0x5D4037})), {position: new THREE.Vector3(0,0.3,0)}));
-        bed.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(2.8,0.4,3.8), M.bed), {position: new THREE.Vector3(0,0.8,0)}));
-        bed.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1,0.3,0.6), M.pillow), {position: new THREE.Vector3(-0.7,1.15,-1.5)}));
-        bed.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1,0.3,0.6), M.pillow), {position: new THREE.Vector3(0.7,1.15,-1.5)}));
+        bed.add(bedFrame);
+        bed.add(bedMattress);
+        bed.add(pillow1);
+        bed.add(pillow2);
         bed.position.set(-5, 0, -5);
         houseGroup.add(bed);
+
         var ns = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color:0x8D6E63}));
         ns.position.set(-2.5, 0.5, -5); ns.castShadow=true;
         houseGroup.add(ns);
@@ -410,7 +425,7 @@ function initGame() {
         // ===== DRIVABLE CAR =====
         var carGroup = new THREE.Group();
         var cBody = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.2, 2.2), M.carBody);
-        cBody.position.y = 0.8; cBody.castShadow = true;
+        cBody.position.set(0, 0.8, 0); cBody.castShadow = true;
         carGroup.add(cBody);
         var cCab = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 2), M.carGlass);
         cCab.position.set(-0.3, 1.85, 0);
