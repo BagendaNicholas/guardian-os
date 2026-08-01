@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianOS - Virtual Home</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-family: Arial, sans-serif;
+            background: rgba(0,0,0,0.8);
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>🏡 GuardianOS Mansion</h2>
+        <p>Welcome to your virtual home!</p>
+    </div>
+    <div id="instructions">
+        Click to start | WASD to move | Mouse to look | ESC to release mouse
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
+        
+        // Fog for depth
+        scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(50, 100, 50);
+        sunLight.castShadow = true;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        scene.add(sunLight);
+
+        // Materials
+        const grassMaterial = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
+        const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xF5F5DC }); // Beige walls
+        const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown roof
+        const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 }); // Dark brown door
+        const windowMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xADD8E6, 
+            transparent: true, 
+            opacity: 0.6,
+            shininess: 100
+        });
+        const fenceMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+
+        // ===== GROUND & COMPOUND =====
+        
+        // Grass ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const ground = new THREE.Mesh(groundGeometry, grassMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Road leading to house
+        const roadGeometry = new THREE.PlaneGeometry(8, 40);
+        const road = new THREE.Mesh(roadGeometry, roadMaterial);
+        road.rotation.x = -Math.PI / 2;
+        road.position.set(0, 0.01, 25);
+        road.receiveShadow = true;
+        scene.add(road);
+
+        // Fence around compound
+        function createFence(x, z, width, height) {
+            const fenceGeometry = new THREE.BoxGeometry(width, height, 0.2);
+            const fence = new THREE.Mesh(fenceGeometry, fenceMaterial);
+            fence.position.set(x, height/2, z);
+            fence.castShadow = true;
+            scene.add(fence);
+        }
+
+        // Front fence (with gate opening)
+        createFence(-20, 30, 20, 2);
+        createFence(20, 30, 20, 2);
+        createFence(-30, 20, 2, 20);
+        createFence(30, 20, 2, 20);
+        createFence(-30, -10, 2, 20);
+        createFence(30, -10, 2, 20);
+        createFence(-20, -30, 20, 2);
+        createFence(20, -30, 20, 2);
+
+        // ===== HOUSE STRUCTURE =====
+        
+        const houseGroup = new THREE.Group();
+
+        // Main house walls
+        const houseWidth = 16;
+        const houseDepth = 12;
+        const houseHeight = 5;
+        
+        const houseWallsGeometry = new THREE.BoxGeometry(houseWidth, houseHeight, houseDepth);
+        const houseWalls = new THREE.Mesh(houseWallsGeometry, wallMaterial);
+        houseWalls.position.y = houseHeight / 2;
+        houseWalls.castShadow = true;
+        houseWalls.receiveShadow = true;
+        houseGroup.add(houseWalls);
+
+        // Roof
+        const roofGeometry = new THREE.ConeGeometry(12, 4, 4);
+        const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+        roof.position.y = houseHeight + 2;
+        roof.rotation.y = Math.PI / 4;
+        roof.castShadow = true;
+        houseGroup.add(roof);
+
+        // ===== DOOR =====
+        const doorWidth = 2;
+        const doorHeight = 3.5;
+        const doorGeometry = new THREE.BoxGeometry(doorWidth, doorHeight, 0.3);
+        const door = new THREE.Mesh(doorGeometry, doorMaterial);
+        door.position.set(0, doorHeight/2, houseDepth/2 + 0.15);
+        door.castShadow = true;
+        houseGroup.add(door);
+
+        // Door frame
+        const frameThickness = 0.3;
+        const doorFrameTop = new THREE.Mesh(
+            new THREE.BoxGeometry(doorWidth + frameThickness*2, frameThickness, frameThickness),
+            doorMaterial
+        );
+        doorFrameTop.position.set(0, doorHeight + frameThickness/2, houseDepth/2 + 0.15);
+        houseGroup.add(doorFrameTop);
+
+        // ===== WINDOWS =====
+        
+        // Front windows
+        function createWindow(x, y, z, rotY = 0) {
+            const windowGroup = new THREE.Group();
+            
+            // Window glass
+            const windowGlass = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 2, 0.2),
+                windowMaterial
+            );
+            windowGroup.add(windowGlass);
+            
+            // Window frame
+            const frameColor = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+            
+            // Top frame
+            const topFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(2.4, 0.2, 0.3),
+                frameColor
+            );
+            topFrame.position.y = 1.1;
+            windowGroup.add(topFrame);
+            
+            // Bottom frame
+            const bottomFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(2.4, 0.2, 0.3),
+                frameColor
+            );
+            bottomFrame.position.y = -1.1;
+            windowGroup.add(bottomFrame);
+            
+            // Side frames
+            const leftFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 2.4, 0.3),
+                frameColor
+            );
+            leftFrame.position.x = -1.1;
+            windowGroup.add(leftFrame);
+            
+            const rightFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 2.4, 0.3),
+                frameColor
+            );
+            rightFrame.position.x = 1.1;
+            windowGroup.add(rightFrame);
+            
+            windowGroup.position.set(x, y, z);
+            windowGroup.rotation.y = rotY;
+            return windowGroup;
+        }
+
+        // Add front windows
+        houseGroup.add(createWindow(-4, 3, houseDepth/2 + 0.1));
+        houseGroup.add(createWindow(4, 3, houseDepth/2 + 0.1));
+
+        // Side windows
+        houseGroup.add(createWindow(-houseWidth/2 - 0.1, 3, 0, Math.PI/2));
+        houseGroup.add(createWindow(houseWidth/2 + 0.1, 3, 0, Math.PI/2));
+
+        // Back windows
+        houseGroup.add(createWindow(-4, 3, -houseDepth/2 - 0.1));
+        houseGroup.add(createWindow(4, 3, -houseDepth/2 - 0.1));
+
+        scene.add(houseGroup);
+
+        // ===== INTERIOR ROOMS =====
+        
+        // Floor inside house
+        const interiorFloor = new THREE.Mesh(
+            new THREE.PlaneGeometry(houseWidth - 0.5, houseDepth - 0.5),
+            new THREE.MeshLambertMaterial({ color: 0xDEB887 })
+        );
+        interiorFloor.rotation.x = -Math.PI / 2;
+        interiorFloor.position.y = 0.01;
+        houseGroup.add(interiorFloor);
+
+        // Interior walls (divide into rooms)
+        const interiorWallMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFACD });
+        
+        // Living room divider
+        const livingRoomWall = new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, houseHeight, houseDepth/2),
+            interiorWallMaterial
+        );
+        livingRoomWall.position.set(0, houseHeight/2, -houseDepth/4);
+        houseGroup.add(livingRoomWall);
+
+        // Bedroom divider
+        const bedroomWall = new THREE.Mesh(
+            new THREE.BoxGeometry(houseWidth/2, houseHeight, 0.3),
+            interiorWallMaterial
+        );
+        bedroomWall.position.set(-houseWidth/4, houseHeight/2, houseDepth/4);
+        houseGroup.add(bedroomWall);
+
+        // ===== TREES & DECORATION =====
+        
+        function createTree(x, z) {
+            const treeGroup = new THREE.Group();
+            
+            // Trunk
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.4, 2, 8),
+                new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+            );
+            trunk.position.y = 1;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+            
+            // Leaves
+            const leaves = new THREE.Mesh(
+                new THREE.SphereGeometry(1.5, 8, 8),
+                new THREE.MeshLambertMaterial({ color: 0x228B22 })
+            );
+            leaves.position.y = 3;
+            leaves.castShadow = true;
+            treeGroup.add(leaves);
+            
+            treeGroup.position.set(x, 0, z);
+            return treeGroup;
+        }
+
+        // Add trees around the compound
+        scene.add(createTree(-15, -15));
+        scene.add(createTree(15, -15));
+        scene.add(createTree(-20, 5));
+        scene.add(createTree(20, 5));
+        scene.add(createTree(-10, 20));
+        scene.add(createTree(10, 20));
+
+        // ===== FIRST PERSON CONTROLS =====
+        
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let canJump = false;
+
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+
+        // Pointer lock controls
+        let isLocked = false;
+
+        document.addEventListener('click', function() {
+            if (!isLocked) {
+                document.body.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('pointerlockchange', function() {
+            isLocked = document.pointerLockElement === document.body;
+            document.getElementById('instructions').style.display = isLocked ? 'none' : 'block';
+        });
+
+        // Keyboard controls
+        const onKeyDown = function(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = true;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = true;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = true;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = true;
+                    break;
+            }
+        };
+
+        const onKeyUp = function(event) {
+            switch (event.code) {
+                case 'ArrowUp':
+                case 'KeyW':
+                    moveForward = false;
+                    break;
+                case 'ArrowLeft':
+                case 'KeyA':
+                    moveLeft = false;
+                    break;
+                case 'ArrowDown':
+                case 'KeyS':
+                    moveBackward = false;
+                    break;
+                case 'ArrowRight':
+                case 'KeyD':
+                    moveRight = false;
+                    break;
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+
+        // Mouse look
+        let euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const PI_2 = Math.PI / 2;
+
+        document.addEventListener('mousemove', function(event) {
+            if (!isLocked) return;
+
+            const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+            const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+
+            euler.setFromQuaternion(camera.quaternion);
+
+            euler.y -= movementX * 0.002;
+            euler.x -= movementY * 0.002;
+
+            euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+
+            camera.quaternion.setFromEuler(euler);
+        });
+
+        // Set initial camera position (outside, near the road)
+        camera.position.set(0, 2, 35);
+
+        // ===== ANIMATION LOOP =====
+        
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            if (isLocked) {
+                // Movement damping
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+
+                // Calculate movement direction
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                // Apply movement
+                if (moveForward || moveBackward) velocity.z -= direction.z * 100.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 100.0 * delta;
+
+                // Move camera based on rotation
+                camera.translateX(-velocity.x * delta);
+                camera.translateZ(-velocity.z * delta);
+
+                // Keep camera at eye level
+                camera.position.y = 2;
+
+                // Simple boundary collision (keep within compound)
+                camera.position.x = Math.max(-28, Math.min(28, camera.position.x));
+                camera.position.z = Math.max(-28, Math.min(38, camera.position.z));
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+  </html>
