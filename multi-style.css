@@ -4,13 +4,17 @@
 :root {
     --bg-color: #060913;
     --card-bg: rgba(10, 17, 34, 0.65);
-    --primary-glow: #00f2fe; /* Cyan neon */
-    --accent-glow: #4facfe;  /* Tech blue */
-    --error-neon: #ff0055;   /* Alert pink/red */
-    --warning-neon: #ffaa00; /* Warning orange */
+    --primary-glow: #00f2fe;
+    --accent-glow: #4facfe;
+    --success-neon: #00ff88;
+    --error-neon: #ff0055;
+    --warning-neon: #ffaa00;
+    --danger-neon: #ff0000;
     --text-main: #e2e8f0;
     --text-muted: #64748b;
     --border-color: rgba(0, 242, 254, 0.2);
+    --panel-bg: #0d0d1a;
+    --input-bg: rgba(6, 9, 19, 0.9);
 }
 
 * {
@@ -40,7 +44,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background-image: 
+    background-image:
         linear-gradient(rgba(0, 242, 254, 0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 242, 254, 0.03) 1px, transparent 1px);
     background-size: 30px 30px;
@@ -118,7 +122,7 @@ h1 { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; letter-spacing: 4px
 /* ==========================================================================
    7. MAIN WORKSPACE RESPONSIVE GRID
    ========================================================================== */
-.dashboard-grid-container { position: relative; z-index: 3; max-width: 1200px; margin: 40px auto 0 auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; }
+.dashboard-grid-container { position: relative; z-index: 3; max-width: 1400px; margin: 40px auto 0 auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; }
 
 /* ==========================================================================
    8. GLASSMORPHIC METRIC CARDS
@@ -134,7 +138,7 @@ h1 { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; letter-spacing: 4px
 .metric-label i { margin-right: 5px; }
 .metric-value { font-family: 'Orbitron', sans-serif; font-size: 1.1rem; color: #fff; text-shadow: 0 0 5px rgba(255, 255, 255, 0.2); }
 .data-stream { font-size: 0.9rem; color: var(--primary-glow); }
-.status-secure { color: #00ff88; text-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
+.status-secure { color: var(--success-neon); text-shadow: 0 0 8px rgba(0, 255, 136, 0.4); }
 .telemetry-layout { display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
 .cyber-action-btn { display: block; text-align: center; padding: 12px; background: rgba(0, 242, 254, 0.1); border: 1px solid var(--primary-glow); color: var(--primary-glow); text-decoration: none; font-weight: 700; letter-spacing: 1px; border-radius: 4px; transition: all 0.3s ease; }
 .cyber-action-btn:not(.disabled):hover { background: var(--primary-glow); color: var(--bg-color); box-shadow: 0 0 15px rgba(0, 242, 254, 0.4); }
@@ -143,35 +147,39 @@ h1 { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; letter-spacing: 4px
 /* ==========================================================================
    9. COMMAND EXECUTIVE BUTTON MATRIX
    ========================================================================== */
-.card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 20px; }
-.matrix-btn { background: rgba(6, 9, 19, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 20px 10px; color: var(--text-main); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; transition: all 0.2s ease; }
-.matrix-btn i { font-size: 1.5rem; color: var(--accent-glow); transition: transform 0.2s ease; }
-.matrix-btn span { font-size: 0.8rem; font-weight: 700; letter-spacing: 1px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding: 20px; }
+.matrix-btn { background: rgba(6, 9, 19, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 16px 8px; color: var(--text-main); cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: all 0.2s ease; position: relative; }
+.matrix-btn i { font-size: 1.3rem; color: var(--accent-glow); transition: transform 0.2s ease; }
+.matrix-btn span { font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; text-align: center; }
+.matrix-btn .toggle-state { font-size: 0.65rem; color: var(--text-muted); font-family: 'Orbitron', monospace; letter-spacing: 1px; }
 .matrix-btn:hover { border-color: var(--primary-glow); box-shadow: 0 0 10px rgba(0, 242, 254, 0.15); background: rgba(0, 242, 254, 0.02); }
 .matrix-btn:hover i { transform: scale(1.1); color: var(--primary-glow); }
 .matrix-btn.alert-action:hover { border-color: var(--error-neon); box-shadow: 0 0 10px rgba(255, 0, 85, 0.2); background: rgba(255, 0, 85, 0.02); }
 .matrix-btn.alert-action:hover i { color: var(--error-neon); }
 
 /* Active States */
-.matrix-btn.active-state { background: rgba(0, 242, 254, 0.15) !important; border-color: var(--primary-glow) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
-.matrix-btn.active-state i { color: var(--primary-glow) !important; text-shadow: 0 0 8px var(--primary-glow) !important; }
-.matrix-btn.alert-action.active-state { background: rgba(255, 0, 85, 0.2) !important; border-color: var(--error-neon) !important; box-shadow: 0 0 15px rgba(255, 0, 85, 0.4) !important; }
-.matrix-btn.alert-action.active-state i { color: var(--error-neon) !important; text-shadow: 0 0 8px var(--error-neon) !important; }
+.matrix-btn.active { background: rgba(0, 242, 254, 0.15) !important; border-color: var(--primary-glow) !important; box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important; }
+.matrix-btn.active i { color: var(--primary-glow) !important; text-shadow: 0 0 8px var(--primary-glow) !important; }
+.matrix-btn.active .toggle-state { color: var(--success-neon) !important; }
+
+.matrix-btn.alert-action.active { background: rgba(255, 0, 85, 0.2) !important; border-color: var(--error-neon) !important; box-shadow: 0 0 15px rgba(255, 0, 85, 0.4) !important; }
+.matrix-btn.alert-action.active i { color: var(--error-neon) !important; text-shadow: 0 0 8px var(--error-neon) !important; }
 
 /* ==========================================================================
    10. CAMERA PREVIEW FEED EFFECTS
    ========================================================================== */
 .camera-monitor-wrapper { width: 100%; max-width: 100%; aspect-ratio: 3 / 4; position: relative; background: rgba(6, 9, 19, 0.8); border: 1px solid rgba(0, 242, 254, 0.15); border-radius: 6px; overflow: hidden; display: flex; justify-content: center; align-items: center; }
 #cameraPreviewFrame { position: absolute; width: auto; height: 100%; min-width: 100%; object-fit: cover; transform: rotate(-90deg); transform-origin: center center; animation: monitor-flicker 4s infinite; }
+#mediaVideoPlayer { position: absolute; width: 100%; height: 100%; object-fit: contain; display: none; }
+#mediaAudioPlayer { width: 100%; margin-top: 10px; display: none; }
+#audio-container { display: none; width: 100%; padding: 10px; }
 .placeholder-text { display: flex; justify-content: center; align-items: center; color: var(--text-muted); font-size: 0.85rem; letter-spacing: 2px; font-weight: 700; text-align: center; padding: 20px; }
 .timestamp-text { margin-top: 10px; font-size: 0.75rem; letter-spacing: 1px; color: var(--text-muted); font-family: 'Orbitron', sans-serif; text-align: right; }
 @keyframes monitor-flicker { 0% { opacity: 0.98; filter: brightness(1); } 50% { opacity: 1; filter: brightness(1.03); } 51% { opacity: 0.97; filter: brightness(0.97); } 100% { opacity: 0.99; filter: brightness(1); } }
 
 /* ==========================================================================
-   11. ADVANCED CONTROLS (TIME & MEDIA) - DARK MODE FIXES
+   11. TIME ACTIVATION CONTROL
    ========================================================================== */
-
-/* Time Activation Input Container */
 .time-control-wrapper {
     grid-column: 1 / -1;
     margin-top: 15px;
@@ -193,11 +201,10 @@ h1 { font-family: 'Orbitron', sans-serif; font-size: 2.2rem; letter-spacing: 4px
     text-transform: uppercase;
 }
 
-/* Force Dark Mode on Time Input */
 input[type="time"] {
     width: 100%;
     padding: 12px 15px;
-    background: rgba(6, 9, 19, 0.9); /* Matches card-bg darkness */
+    background: var(--input-bg);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     color: var(--primary-glow);
@@ -214,23 +221,509 @@ input[type="time"]:focus {
     box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
 }
 
-/* Remove default browser icons for a cleaner look */
 input[type="time"]::-webkit-calendar-picker-indicator {
     filter: invert(1) sepia(1) saturate(5) hue-rotate(160deg);
     cursor: pointer;
 }
 
-/* Media Button Specific Accents */
-#cmd-audio.active-state {
-    border-color: var(--warning-neon);
-    box-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
-    background: rgba(255, 170, 0, 0.15);
+/* ==========================================================================
+   12. MEDIA BUTTON SPECIFIC ACCENTS
+   ========================================================================== */
+#cmd-audio.active {
+    border-color: var(--warning-neon) !important;
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.4) !important;
+    background: rgba(255, 170, 0, 0.15) !important;
 }
-#cmd-audio.active-state i { color: var(--warning-neon) !important; }
+#cmd-audio.active i { color: var(--warning-neon) !important; }
 
-#cmd-video.active-state {
-    border-color: var(--error-neon);
-    box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
-    background: rgba(255, 0, 85, 0.15);
+#cmd-video.active {
+    border-color: var(--error-neon) !important;
+    box-shadow: 0 0 20px rgba(255, 0, 85, 0.4) !important;
+    background: rgba(255, 0, 85, 0.15) !important;
 }
-#cmd-video.active-state i { color: var(--error-neon) !important; }
+#cmd-video.active i { color: var(--error-neon) !important; }
+
+#cmd-ambient.active {
+    border-color: #bf5af2 !important;
+    box-shadow: 0 0 20px rgba(191, 90, 242, 0.4) !important;
+    background: rgba(191, 90, 242, 0.15) !important;
+}
+#cmd-ambient.active i { color: #bf5af2 !important; }
+
+#cmd-screenrec.active {
+    border-color: #ff6b6b !important;
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.4) !important;
+    background: rgba(255, 107, 107, 0.15) !important;
+}
+#cmd-screenrec.active i { color: #ff6b6b !important; }
+
+#cmd-clipboard.active {
+    border-color: #ffd93d !important;
+    box-shadow: 0 0 20px rgba(255, 217, 61, 0.4) !important;
+    background: rgba(255, 217, 61, 0.15) !important;
+}
+#cmd-clipboard.active i { color: #ffd93d !important; }
+
+/* ==========================================================================
+   13. SECTION HEADERS
+   ========================================================================== */
+.section-header {
+    grid-column: 1 / -1;
+    margin-top: 10px;
+}
+
+.section-header h3 {
+    font-family: 'Orbitron', 'Courier New', monospace;
+    color: var(--success-neon);
+    margin: 20px 0 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+    border-left: 3px solid var(--success-neon);
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: rgba(0, 255, 136, 0.03);
+    border-radius: 0 6px 6px 0;
+}
+
+/* ==========================================================================
+   14. SHELL / SMS / FILE / GEOFENCE INPUT WRAPPERS
+   ========================================================================== */
+.shell-control-wrapper {
+    grid-column: 1 / -1;
+    margin: 12px 0;
+    padding: 16px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+.shell-control-wrapper input[type="text"],
+.shell-control-wrapper input[type="number"] {
+    padding: 10px 14px;
+    background: var(--input-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.shell-control-wrapper input:focus {
+    border-color: var(--primary-glow);
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.15);
+}
+
+.shell-control-wrapper pre {
+    background: #050510;
+    color: var(--success-neon);
+    padding: 14px;
+    border-radius: 6px;
+    margin-top: 10px;
+    font-size: 11px;
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border: 1px solid rgba(0, 255, 136, 0.1);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+/* Shell output specific */
+#shell-output {
+    color: var(--success-neon) !important;
+    border-color: rgba(0, 255, 136, 0.15) !important;
+}
+
+/* File output specific */
+#file-output {
+    color: #4ecdc4 !important;
+    border-color: rgba(78, 205, 196, 0.15) !important;
+}
+
+/* Inline action buttons inside wrappers */
+.shell-control-wrapper button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.shell-control-wrapper button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+#cmd-shell {
+    background: var(--success-neon) !important;
+    color: #000 !important;
+}
+#cmd-shell:hover { box-shadow: 0 0 15px rgba(0, 255, 136, 0.4) !important; }
+
+#cmd-sendsms {
+    background: #ff6b6b !important;
+    color: #fff !important;
+}
+#cmd-sendsms:hover { box-shadow: 0 0 15px rgba(255, 107, 107, 0.4) !important; }
+
+#cmd-listfiles {
+    background: #4ecdc4 !important;
+    color: #000 !important;
+}
+#cmd-listfiles:hover { box-shadow: 0 0 15px rgba(78, 205, 196, 0.4) !important; }
+
+#cmd-setgeo {
+    background: #ffd93d !important;
+    color: #000 !important;
+    flex: 1;
+}
+#cmd-setgeo:hover { box-shadow: 0 0 15px rgba(255, 217, 61, 0.4) !important; }
+
+#cmd-disablegeo {
+    background: #ff6b6b !important;
+    color: #fff !important;
+}
+#cmd-disablegeo:hover { box-shadow: 0 0 15px rgba(255, 107, 107, 0.4) !important; }
+
+/* ==========================================================================
+   15. DATA PANELS GRID (Live Data Feeds)
+   ========================================================================== */
+.data-panels-grid {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.data-panel {
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.3s ease;
+}
+
+.data-panel:hover {
+    border-color: rgba(0, 242, 254, 0.2);
+}
+
+.data-panel-header {
+    background: rgba(26, 26, 46, 0.8);
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.badge {
+    background: var(--success-neon);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Orbitron', monospace;
+}
+
+.data-panel-body {
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 12px;
+    color: #888;
+}
+
+/* Custom scrollbar for data panels */
+.data-panel-body::-webkit-scrollbar {
+    width: 4px;
+}
+.data-panel-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+.data-panel-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 242, 254, 0.3);
+    border-radius: 2px;
+}
+
+/* Feed items inside panels */
+.feed-item {
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    line-height: 1.6;
+}
+
+.feed-item:last-child {
+    border-bottom: none;
+}
+
+.feed-item strong {
+    color: #fff;
+    font-size: 12px;
+}
+
+.feed-item small {
+    color: #555;
+    font-size: 10px;
+}
+
+.feed-item code {
+    color: #4ecdc4;
+    font-size: 11px;
+    word-break: break-all;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    background: rgba(78, 205, 196, 0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.feed-item a {
+    color: #4ecdc4;
+    text-decoration: none;
+    font-size: 11px;
+}
+.feed-item a:hover {
+    text-decoration: underline;
+}
+
+/* Live item highlight (incoming SMS, ringing calls) */
+.live-item {
+    border-left: 3px solid #ff6b6b;
+    padding-left: 10px;
+    background: rgba(255, 107, 107, 0.03);
+    animation: live-pulse 2s infinite;
+}
+
+@keyframes live-pulse {
+    0%, 100% { background: rgba(255, 107, 107, 0.03); }
+    50% { background: rgba(255, 107, 107, 0.08); }
+}
+
+/* Alert item (geofence breach) */
+.alert-item {
+    border-left: 3px solid var(--danger-neon);
+    padding-left: 10px;
+    background: rgba(255, 0, 0, 0.05);
+    animation: alert-flash 1.5s infinite;
+}
+
+@keyframes alert-flash {
+    0%, 100% { background: rgba(255, 0, 0, 0.05); }
+    50% { background: rgba(255, 0, 0, 0.12); }
+}
+
+/* ==========================================================================
+   16. DANGER ZONE BUTTON STYLES
+   ========================================================================== */
+#cmd-reboot, #cmd-shutdown, #cmd-uninstall, #cmd-locknow {
+    border-color: rgba(255, 107, 107, 0.4) !important;
+}
+#cmd-reboot:hover, #cmd-shutdown:hover, #cmd-uninstall:hover, #cmd-locknow:hover {
+    border-color: #ff6b6b !important;
+    box-shadow: 0 0 15px rgba(255, 107, 107, 0.3) !important;
+    background: rgba(255, 107, 107, 0.08) !important;
+}
+#cmd-reboot:hover i, #cmd-shutdown:hover i, #cmd-uninstall:hover i, #cmd-locknow:hover i {
+    color: #ff6b6b !important;
+}
+
+#cmd-factory {
+    border-color: rgba(255, 0, 0, 0.5) !important;
+    animation: danger-border 2s infinite;
+}
+@keyframes danger-border {
+    0%, 100% { border-color: rgba(255, 0, 0, 0.3); }
+    50% { border-color: rgba(255, 0, 0, 0.7); }
+}
+#cmd-factory:hover {
+    border-color: var(--danger-neon) !important;
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.4) !important;
+    background: rgba(255, 0, 0, 0.12) !important;
+}
+#cmd-factory:hover i {
+    color: var(--danger-neon) !important;
+}
+
+/* ==========================================================================
+   17. DEVICE LIST SIDEBAR ITEMS
+   ========================================================================== */
+.device-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+}
+
+.device-item:hover {
+    background: rgba(0, 242, 254, 0.05);
+    border-left-color: rgba(0, 242, 254, 0.3);
+}
+
+.device-item.active {
+    background: rgba(0, 242, 254, 0.08);
+    border-left-color: var(--primary-glow);
+}
+
+.device-item-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.device-item-status {
+    font-size: 11px;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.device-online {
+    color: var(--success-neon);
+}
+
+.device-offline {
+    color: var(--error-neon);
+}
+
+/* ==========================================================================
+   18. NO DEVICE ALERT
+   ========================================================================== */
+#no-device-alert {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    letter-spacing: 2px;
+    text-align: center;
+    gap: 15px;
+}
+
+#no-device-alert i {
+    font-size: 3rem;
+    color: rgba(0, 242, 254, 0.3);
+}
+
+/* ==========================================================================
+   19. RESPONSIVE ADJUSTMENTS
+   ========================================================================== */
+@media (max-width: 768px) {
+    .dashboard-header {
+        padding: 15px 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .dashboard-header h2 {
+        font-size: 1.1rem;
+    }
+
+    .dashboard-grid-container {
+        grid-template-columns: 1fr;
+        padding: 0 12px;
+        margin-top: 20px;
+    }
+
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .matrix-btn {
+        padding: 12px 6px;
+    }
+
+    .matrix-btn i {
+        font-size: 1.1rem;
+    }
+
+    .matrix-btn span {
+        font-size: 0.6rem;
+    }
+
+    .data-panels-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .shell-control-wrapper {
+        padding: 12px;
+    }
+
+    .time-control-wrapper {
+        padding: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .card-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dashboard-header h2 {
+        font-size: 0.9rem;
+        letter-spacing: 1px;
+    }
+}
+
+/* ==========================================================================
+   20. SCROLLBAR GLOBAL STYLES
+   ========================================================================== */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 242, 254, 0.2);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 242, 254, 0.4);
+}
+
+/* ==========================================================================
+   21. LOADING / TRANSITION ANIMATIONS
+   ========================================================================== */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.data-panel {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.matrix-btn {
+    animation: fadeIn 0.2s ease forwards;
+}
+
+/* Stagger animation for matrix buttons */
+.matrix-btn:nth-child(1) { animation-delay: 0.02s; }
+.matrix-btn:nth-child(2) { animation-delay: 0.04s; }
+.matrix-btn:nth-child(3) { animation-delay: 0.06s; }
+.matrix-btn:nth-child(4) { animation-delay: 0.08s; }
+.matrix-btn:nth-child(5) { animation-delay: 0.10s; }
+.matrix-btn:nth-child(6) { animation-delay: 0.12s; }
+.matrix-btn:nth-child(7) { animation-delay: 0.14s; }
+.matrix-btn:nth-child(8) { animation-delay: 0.16s; }
+.matrix-btn:nth-child(9) { animation-delay: 0.18s; }
+.matrix-btn:nth-child(10) { animation-delay: 0.20s; }
