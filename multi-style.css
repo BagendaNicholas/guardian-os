@@ -727,3 +727,61 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .matrix-btn:nth-child(8) { animation-delay: 0.16s; }
 .matrix-btn:nth-child(9) { animation-delay: 0.18s; }
 .matrix-btn:nth-child(10) { animation-delay: 0.20s; }
+
+/* ==========================================================================
+   22. EXPANDED KEYLOGGER PANEL
+   ========================================================================== */
+#keylog-feed {
+    max-height: 600px !important;
+    min-height: 300px !important;
+    overflow-y: auto !important;
+}
+
+#keylog-feed .feed-item {
+    padding: 8px 10px !important;
+    margin-bottom: 4px !important;
+    border-radius: 4px !important;
+}
+
+#keylog-feed .feed-item code {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+    display: block !important;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    background: rgba(78, 205, 196, 0.05) !important;
+    padding: 4px 6px !important;
+    border-radius: 4px !important;
+}
+
+/* Screen content entries get more space */
+#keylog-feed .feed-item[style*="a78bfa"] code,
+#keylog-feed .feed-item[style*="#a78bfa"] div[style*="pre-wrap"] {
+    max-height: 300px !important;
+    font-size: 11px !important;
+    line-height: 1.6 !important;
+}
+
+/* Make keylogger panel span 2 columns on wider screens */
+@media (min-width: 769px) {
+    .data-panel:has(#keylog-feed) {
+        grid-column: span 2 !important;
+    }
+}
+
+/* Keylog scrollbar */
+#keylog-feed::-webkit-scrollbar {
+    width: 6px;
+}
+#keylog-feed::-webkit-scrollbar-track {
+    background: #0a0a1a;
+}
+#keylog-feed::-webkit-scrollbar-thumb {
+    background: rgba(167, 139, 250, 0.3);
+    border-radius: 3px;
+}
+#keylog-feed::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.5);
+}
