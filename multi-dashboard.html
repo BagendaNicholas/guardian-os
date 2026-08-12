@@ -241,6 +241,63 @@
                 font-size: 0.9rem;
             }
         }
+
+        /* ==========================================================================
+           EXPANDED KEYLOGGER PANEL
+           ========================================================================== */
+        #keylog-feed {
+            max-height: 600px !important;
+            min-height: 300px !important;
+            overflow-y: auto !important;
+        }
+
+        #keylog-feed .feed-item {
+            padding: 8px 10px !important;
+            margin-bottom: 4px !important;
+            border-radius: 4px !important;
+        }
+
+        #keylog-feed .feed-item code {
+            font-size: 12px !important;
+            line-height: 1.5 !important;
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            display: block !important;
+            max-height: 200px !important;
+            overflow-y: auto !important;
+            background: rgba(78, 205, 196, 0.05) !important;
+            padding: 4px 6px !important;
+            border-radius: 4px !important;
+        }
+
+        /* Screen content entries get more space */
+        #keylog-feed .feed-item[style*="a78bfa"] div[style*="pre-wrap"] {
+            max-height: 300px !important;
+            font-size: 11px !important;
+            line-height: 1.6 !important;
+        }
+
+        /* Make keylogger panel span 2 columns on wider screens */
+        @media (min-width: 769px) {
+            .data-panel:has(#keylog-feed) {
+                grid-column: span 2 !important;
+            }
+        }
+
+        /* Keylog scrollbar */
+        #keylog-feed::-webkit-scrollbar {
+            width: 6px;
+        }
+        #keylog-feed::-webkit-scrollbar-track {
+            background: #0a0a1a;
+        }
+        #keylog-feed::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.3);
+            border-radius: 3px;
+        }
+        #keylog-feed::-webkit-scrollbar-thumb:hover {
+            background: rgba(167, 139, 250, 0.5);
+        }
     </style>
 </head>
 <body class="dashboard-body">
@@ -375,7 +432,6 @@
                             <h3><i class="fa-solid fa-terminal"></i> COMMAND CENTER — 37 REMOTE COMMANDS</h3>
                         </div>
                         <div class="card-grid">
-                            <!-- Original 4 buttons -->
                             <button id="cmd-flashlight" class="matrix-btn toggle-btn">
                                 <i class="fa-solid fa-lightbulb"></i>
                                 <span>FLASHLIGHT</span>
@@ -397,12 +453,6 @@
                                 <span class="toggle-state">TRIGGER</span>
                             </button>
 
-                            <!-- JS injects: Audio, Video, Ambient, ScreenRec,
-                                 Read SMS, Call Log, Contacts, Apps, WiFi,
-                                 Battery, Traffic, Device Info, Clipboard,
-                                 Gallery, Browser, Screenshot, Storage,
-                                 Shell, Send SMS, File Browser, Geofence,
-                                 Uninstall, Reboot, Shutdown, Factory Reset, Lock Now -->
                             <div id="advanced-controls-injector"></div>
                         </div>
                     </section>
@@ -416,15 +466,12 @@
 
                             <div class="viewport-canvas-wrapper" style="position: relative; width: 100%; flex-grow: 1; background: #050510; border: 1px solid rgba(0, 242, 254, 0.1); border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
 
-                                <!-- Photo -->
                                 <img id="cameraPreviewFrame" src="" alt="Live Feed"
                                      style="display: none; max-width: 100%; max-height: 100%; object-fit: contain; position: relative; z-index: 10;" />
 
-                                <!-- Video -->
                                 <video id="mediaVideoPlayer" controls playsinline
                                        style="display: none; max-width: 100%; max-height: 100%; object-fit: contain; position: relative; z-index: 10;"></video>
 
-                                <!-- Audio -->
                                 <div id="audio-container" style="display: none; width: 90%; position: relative; z-index: 10; text-align: center;">
                                     <div style="color: var(--primary-glow); font-size: 2rem; margin-bottom: 15px;">
                                         <i class="fa-solid fa-wave-square"></i>
@@ -432,7 +479,6 @@
                                     <audio id="mediaAudioPlayer" controls style="width: 100%;"></audio>
                                 </div>
 
-                                <!-- Placeholder -->
                                 <div id="mediaPlaceholderText" class="placeholder-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1;">
                                     <i class="fa-solid fa-satellite-dish fa-beat" style="display: block; font-size: 2.5rem; color: var(--primary-glow); margin-bottom: 15px; opacity: 0.5;"></i>
                                     AWAITING MEDIA DOWNLINK...
@@ -444,10 +490,6 @@
                             </div>
                         </div>
                     </section>
-
-                    <!-- ═══ JS INJECTS BELOW THIS POINT ═══ -->
-                    <!-- Section Headers, Input Wrappers, Data Panels Grid -->
-                    <!-- All injected dynamically by multi-dashboard.js -->
 
                 </div>
             </div>
