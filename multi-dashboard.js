@@ -410,7 +410,7 @@ function initializeDataFeedListeners(uid) {
                 var prevName = k.previous_app ? getFriendlyApp(k.previous_app) : 'Home';
                 html += '<div style="color:#ff6b6b;font-size:11px;">' + esc(prevName) + ' → <strong>' + esc(appName) + '</strong></div>';
             } else if(k.event === 'screen_content') {
-                html += '<div style="color:#a78bfa;font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;line-height:1.4;">' + esc(k.text) + '</div>';
+                html += '<div style="color:#a78bfa;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.6;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:4px;">' + esc(k.text) + '</div>';
             } else {
                 html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
             }
@@ -432,7 +432,7 @@ function initializeDataFeedListeners(uid) {
         html += '<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ' + esc(triggerLabel) + '</span>';
         html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(d.timestamp) + '</span>';
         html += '</div>';
-        html += '<div style="color:#e0d4ff;font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;line-height:1.4;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;">' + esc(d.text) + '</div>';
+        html += '<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">' + esc(d.text) + '</div>';
         html += '</div>';
         f.innerHTML = html + f.innerHTML;
     });
