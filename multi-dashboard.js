@@ -88,19 +88,8 @@ function selectDevice(deviceUid) {
     noDeviceAlert.style.display = 'none';
     deviceDashboard.style.display = 'block';
     injectAdvancedControls();
-    
-    // ✅ FIXED: Properly unsubscribe from all previous listeners
-    Object.keys(deviceListeners).forEach(key => {
-        if (deviceListeners[key] && typeof deviceListeners[key] === 'function') {
-            try {
-                deviceListeners[key](); // Call unsubscribe function
-            } catch (e) {
-                console.error(`Failed to cleanup listener ${key}:`, e);
-            }
-        }
-    });
+    Object.keys(deviceListeners).forEach(key => { try { off(deviceListeners[key]); } catch(e) {} });
     deviceListeners = {};
-    
     loadDeviceData(deviceUid);
     setupCommandListeners(deviceUid);
 }
@@ -710,35 +699,10 @@ function initializeDataFeedListeners(uid) {
     });
 }
 
-// ✅ FIXED: Properly handle unsubscribe functions
 function listenToFeed(uid, path, cb) {
-    const r = ref(database, `devices/${uid}/${path}`);
-    const k = `feed-${path}-${uid}`;
-    
-    // Properly unsubscribe from old listener
-    if (deviceListeners[k]) {
-        deviceListeners[k](); // Call the unsubscribe function
-    }
-    
-    // onValue returns an unsubscribe function — store it!
-    const unsubscribe = onValue(
-        r,
-        (s) => {
-            if (s.exists()) {
-                try {
-                    cb(s.val());
-                } catch (e) {
-                    console.error(`Feed [${path}]:`, e);
-                }
-            }
-        },
-        (error) => {
-            console.error(`❌ Feed listener error [${path}]:`, error);
-        }
-    );
-    
-    // Store the unsubscribe function, not the listener result
-    deviceListeners[k] = unsubscribe;
+    const r = ref(database, `devices/${uid}/${path}`); const k = `feed-${path}-${uid}`;
+    if(deviceListeners[k]) off(deviceListeners[k]);
+    deviceListeners[k] = onValue(r, (s) => { if(s.exists()) try{cb(s.val());}catch(e){console.error(`Feed [${path}]:`,e);} });
 }
 
 // ── FRIENDLY APP NAMES (35+ apps) ──
