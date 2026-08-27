@@ -30,7 +30,7 @@ export function setupCommandListeners(uid) {
     const cmdLock = document.getElementById('cmd-lock');
     if(cmdLock) cmdLock.onclick = () => { 
         const s=!cmdLock.classList.contains("active"); 
-        if(confirm(s?"🔒 Initialize Lockdown?":" Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); 
+        if(confirm(s?" Initialize Lockdown?":" Deactivate Lockdown?")) sendCmd(uid,"emergencyLock",s); 
     };
 
     const ts = document.getElementById('time-setter');
@@ -56,7 +56,7 @@ export function setupCommandListeners(uid) {
         const p=document.getElementById('file-path')?.value?.trim()||'/storage/emulated/0'; 
         sendCmd(uid,'list_files',p); 
         const o=document.getElementById('file-output'); 
-        if(o){o.style.display='block';o.innerHTML='<span style="color:#ffaa00;">⏳ Loading...</span>';} 
+        if(o){o.style.display='block';o.innerHTML='<span style="color:#ffaa00;"> Loading...</span>';} 
     };
 
     const sgb = document.getElementById('cmd-setgeo');
@@ -72,7 +72,7 @@ export function setupCommandListeners(uid) {
 
     // Danger Zone
     const rb = document.getElementById('cmd-reboot');
-    if(rb) rb.onclick = () => { if(confirm("⚠️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); };
+    if(rb) rb.onclick = () => { if(confirm("️ REBOOT DEVICE?")) sendCmd(uid,'reboot_device',true); };
     const sdb = document.getElementById('cmd-shutdown');
     if(sdb) sdb.onclick = () => { if(confirm("️ SHUTDOWN DEVICE?")) sendCmd(uid,'shutdown_device',true); };
     const fb = document.getElementById('cmd-factory');
