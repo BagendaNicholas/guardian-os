@@ -32,7 +32,7 @@ function setupShellListeners() {
                 text += (d.stdout || '(no output)');
                 if (d.stderr) text += '\n\nSTDERR:\n' + d.stderr;
                 text += '\n\nExit code: ' + (d.exit_code ?? '?');
-                if (d.timed_out) text += ' ️ TIMED OUT';
+                if (d.timed_out) text += ' ⚠️ TIMED OUT';
             }
             o.textContent = text;
             o.scrollTop = o.scrollHeight;
@@ -41,7 +41,7 @@ function setupShellListeners() {
     });
 }
 
-// ─── FILE BROWSER ──────────────────────
+// ─── FILE BROWSER ─────────────────────
 function setupFileBrowserListeners() {
     import('./firebase-config.js').then(({ database, ref, onValue, addListener, removeListener }) => {
         const key = `feed-file_browser-${currentUid}`;
@@ -55,7 +55,7 @@ function setupFileBrowserListeners() {
             o.style.display = 'block';
             
             if (d.error) {
-                o.innerHTML = '<span style="color:#ff6b6b;"> ' + esc(d.error) + '</span>';
+                o.innerHTML = '<span style="color:#ff6b6b;">❌ ' + esc(d.error) + '</span>';
                 return;
             }
             
@@ -89,17 +89,21 @@ function renderFilePreview(container, d) {
     container.innerHTML = html;
 }
 
-// ✅ FIXED: True File Explorer Rendering
+// ✅ UPDATED: True File Explorer Rendering with Original Logic
 function renderDirectoryList(container, d) {
     // Header with path and counts
     let html = `<div style="color:#00ff88;font-size:13px;margin-bottom:4px;word-break:break-all;">📂 ${esc(d.current_path || '/')}</div>`;
     
-    // Only show counts if they actually exist in the data
-    const dirCount = d.total_dirs !== undefined ? d.total_dirs : '?';
-    const fileCount = d.total_files !== undefined ? d.total_files : '?';
-    html += `<div style="color:#666;font-size:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a2e;">
-                ${dirCount} folders • ${fileCount} files
-             </div>`;
+    // Show accurate counts including hidden files info if available
+    let countText = `${d.total_dirs || 0} folders • ${d.total_files || 0} files`;
+    if (d.shown_files !== undefined && d.total_files > d.shown_files) {
+        countText += ` (showing ${d.shown_files})`;
+    }
+    if (d.previews_generated) {
+        countText += ` • ${d.previews_generated} previews`;
+    }
+    
+    html += `<div style="color:#666;font-size:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a2e;">${countText}</div>`;
     
     const entries = d.entries || [];
     
@@ -112,13 +116,15 @@ function renderDirectoryList(container, d) {
 
     sorted.forEach(e => {
         const pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        // Handle hidden files/folders with reduced opacity
+        const hiddenStyle = e.is_hidden ? 'opacity:0.5;' : '';
         
         if (e.is_directory) {
-            //  FOLDER: Clickable to navigate inside
-            // FIXED: Removed misleading "Empty folder" fallback
-            const countText = e.child_count ? `${e.child_count} items` : '';
+            // 📁 FOLDER: Clickable to navigate inside
+            // FIXED: Only show child_count if it exists, otherwise show nothing
+            const countSubtext = e.child_count ? `${e.child_count} items` : '';
             
-            html += `<div style="padding:10px 0;border-bottom:1px solid #111;cursor:pointer;display:flex;align-items:center;gap:10px;" 
+            html += `<div style="padding:10px 0;border-bottom:1px solid #111;cursor:pointer;display:flex;align-items:center;gap:10px;${hiddenStyle}" 
                           onclick="navigateToFolder('${pathEsc}')">
                         <span style="font-size:20px;color:#ffd93d;">📁</span>
                         <div style="flex:1;min-width:0;">
@@ -126,25 +132,54 @@ function renderDirectoryList(container, d) {
                                 ${esc(e.name)}
                             </div>
                             <div style="color:#555;font-size:9px;">
-                                ${countText}
+                                ${countSubtext}
                             </div>
                         </div>
                         <span style="color:#444;font-size:16px;">›</span>
                     </div>`;
         } else {
-            // 📄 FILE: Show icon + name + size
-            const icon = getFileIcon(e.name);
-            html += `<div style="padding:8px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;">
-                        <span style="font-size:18px;width:30px;text-align:center;">${icon}</span>
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-size:12px;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                                ${esc(e.name)}
-                            </div>
-                            <div style="color:#555;font-size:9px;">
-                                ${e.size_formatted || ''}
-                            </div>
-                        </div>
-                     </div>`;
+            // 📄 FILE: Show thumbnail/preview OR icon based on availability
+            html += `<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;${hiddenStyle}">`;
+            
+            if (e.preview_url) {
+                // Has a thumbnail/preview image
+                const isVideoFile = (e.icon === '🎬');
+                html += `<div style="position:relative;width:50px;height:50px;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();window.open('${e.preview_url}', '_blank')">`;
+                html += `<img src="${e.preview_url}" style="width:50px;height:50px;object-fit:cover;border-radius:4px;display:block;" loading="lazy">`;
+                if (isVideoFile) {
+                    html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;"><div style="width:0;height:0;border-left:8px solid #fff;border-top:5px solid transparent;border-bottom:5px solid transparent;margin-left:2px;"></div></div>';
+                }
+                html += '</div>';
+            } else {
+                // No preview, use colored icon box
+                const icon = e.icon || getFileIcon(e.name);
+                let iconBg = '#1a1a2e';
+                if (icon === '🎵') iconBg = '#1a0a2e';
+                else if (icon === '') iconBg = '#2e0a0a';
+                else if (icon === '') iconBg = '#0a2e0a';
+                else if (icon === '🗜️') iconBg = '#2e2e0a';
+                else if (icon === '📕') iconBg = '#2e0a0a';
+                else if (icon === '📘') iconBg = '#0a0a2e';
+                else if (icon === '📊') iconBg = '#0a2e0a';
+                else if (icon === '📙') iconBg = '#2e1a0a';
+                else if (icon === '🗄️') iconBg = '#1a1a0a';
+                else if (icon === '⚙️') iconBg = '#1a1a1a';
+                else if (icon === '🔑') iconBg = '#2e1a0a';
+                else if (icon === '🔤') iconBg = '#0a1a2e';
+                else if (icon === '👤') iconBg = '#1a2e1a';
+                else if (icon === '📅') iconBg = '#2e0a1a';
+                else if (icon === '💬') iconBg = '#0a2e2e';
+                else if (icon === '') iconBg = '#2e2e2e';
+                else if (icon === '🔲') iconBg = '#111';
+                
+                html += `<div style="width:50px;height:50px;background:${iconBg};border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;">${icon}</div>`;
+            }
+            
+            html += `<div style="flex:1;min-width:0;">
+                        <div style="font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.name)}</div>
+                        <div style="color:#555;font-size:10px;">${e.size_formatted || ''}</div>
+                        <div style="color:#444;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.path)}</div>
+                     </div></div>`;
         }
     });
     
@@ -156,19 +191,19 @@ function renderDirectoryList(container, d) {
     container.innerHTML = html;
 }
 
-// Helper to get file icon based on extension
+// Helper to get file icon based on extension (fallback when no preview/icon provided)
 function getFileIcon(filename) {
-    if (!filename) return '';
+    if (!filename) return '📄';
     const ext = filename.split('.').pop().toLowerCase();
     const icons = {
-        'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️', 'svg': '🖼️',
-        'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', '3gp': '🎬',
-        'mp3': '🎵', 'wav': '', 'ogg': '🎵', 'aac': '🎵', 'flac': '',
-        'pdf': '📕', 'doc': '📘', 'docx': '📘', 'txt': '📝', 'csv': '📊',
-        'zip': '🗜️', 'rar': '️', '7z': '🗜️', 'tar': '🗜️',
-        'apk': '📦', 'exe': '⚙️', 'bat': '️', 'sh': '⚙️',
-        'html': '🌐', 'css': '🎨', 'js': '', 'json': '📋',
-        'db': '🗄️', 'sqlite': '🗄️',
+        'jpg': '🖼️', 'jpeg': '🖼️', 'png': '️', 'gif': '🖼️', 'webp': '🖼️', 'svg': '🖼️',
+        'mp4': '🎬', 'avi': '', 'mkv': '🎬', 'mov': '🎬', '3gp': '🎬',
+        'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'aac': '🎵', 'flac': '🎵',
+        'pdf': '📕', 'doc': '📘', 'docx': '', 'txt': '📝', 'csv': '📊',
+        'zip': '🗜️', 'rar': '🗜️', '7z': '🗜️', 'tar': '🗜️',
+        'apk': '📦', 'exe': '️', 'bat': '⚙️', 'sh': '⚙️',
+        'html': '🌐', 'css': '🎨', 'js': '⚡', 'json': '📋',
+        'db': '🗄️', 'sqlite': '️',
     };
     return icons[ext] || '📄';
 }
@@ -190,7 +225,7 @@ function attachEventHandlers() {
         const p = document.getElementById('file-path')?.value?.trim() || '/storage/emulated/0';
         sendCmd(currentUid, 'list_files', p);
         const o = document.getElementById('file-output');
-        if (o) { o.style.display = 'block'; o.innerHTML = '<span style="color:#ffaa00;"> Loading...</span>'; }
+        if (o) { o.style.display = 'block'; o.innerHTML = '<span style="color:#ffaa00;">⏳ Loading...</span>'; }
     };
 }
 
@@ -199,7 +234,7 @@ window.navigateToFolder = function(path) {
     if (!currentUid) return;
     sendCmd(currentUid, 'list_files', path.trim());
     const o = document.getElementById('file-output');
-    if (o) { o.style.display = 'block'; o.innerHTML = `<span style="color:#ffaa00;"> Loading ${esc(path)}...</span>`; }
+    if (o) { o.style.display = 'block'; o.innerHTML = `<span style="color:#ffaa00;">⏳ Loading ${esc(path)}...</span>`; }
     const inp = document.getElementById('file-path');
     if (inp) inp.value = path.trim();
 };
