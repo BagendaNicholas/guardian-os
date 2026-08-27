@@ -32,7 +32,7 @@ function setupShellListeners() {
                 text += (d.stdout || '(no output)');
                 if (d.stderr) text += '\n\nSTDERR:\n' + d.stderr;
                 text += '\n\nExit code: ' + (d.exit_code ?? '?');
-                if (d.timed_out) text += ' ⚠️ TIMED OUT';
+                if (d.timed_out) text += ' ️ TIMED OUT';
             }
             o.textContent = text;
             o.scrollTop = o.scrollHeight;
@@ -89,12 +89,16 @@ function renderFilePreview(container, d) {
     container.innerHTML = html;
 }
 
-// ✅ NEW: True File Explorer Rendering
+// ✅ FIXED: True File Explorer Rendering
 function renderDirectoryList(container, d) {
     // Header with path and counts
     let html = `<div style="color:#00ff88;font-size:13px;margin-bottom:4px;word-break:break-all;">📂 ${esc(d.current_path || '/')}</div>`;
+    
+    // Only show counts if they actually exist in the data
+    const dirCount = d.total_dirs !== undefined ? d.total_dirs : '?';
+    const fileCount = d.total_files !== undefined ? d.total_files : '?';
     html += `<div style="color:#666;font-size:10px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1a1a2e;">
-                ${d.total_dirs || 0} folders • ${d.total_files || 0} files
+                ${dirCount} folders • ${fileCount} files
              </div>`;
     
     const entries = d.entries || [];
@@ -110,7 +114,10 @@ function renderDirectoryList(container, d) {
         const pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
         
         if (e.is_directory) {
-            // 📁 FOLDER: Clickable to navigate inside
+            //  FOLDER: Clickable to navigate inside
+            // FIXED: Removed misleading "Empty folder" fallback
+            const countText = e.child_count ? `${e.child_count} items` : '';
+            
             html += `<div style="padding:10px 0;border-bottom:1px solid #111;cursor:pointer;display:flex;align-items:center;gap:10px;" 
                           onclick="navigateToFolder('${pathEsc}')">
                         <span style="font-size:20px;color:#ffd93d;">📁</span>
@@ -119,13 +126,13 @@ function renderDirectoryList(container, d) {
                                 ${esc(e.name)}
                             </div>
                             <div style="color:#555;font-size:9px;">
-                                ${e.child_count ? `${e.child_count} items inside` : 'Empty folder'}
+                                ${countText}
                             </div>
                         </div>
                         <span style="color:#444;font-size:16px;">›</span>
                     </div>`;
         } else {
-            // 📄 FILE: Show icon + name + size (no thumbnail grid)
+            // 📄 FILE: Show icon + name + size
             const icon = getFileIcon(e.name);
             html += `<div style="padding:8px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;">
                         <span style="font-size:18px;width:30px;text-align:center;">${icon}</span>
@@ -141,17 +148,22 @@ function renderDirectoryList(container, d) {
         }
     });
     
+    // If no entries at all, show a true empty state
+    if (sorted.length === 0) {
+        html += `<div style="padding:20px;text-align:center;color:#555;font-style:italic;">This folder is truly empty.</div>`;
+    }
+    
     container.innerHTML = html;
 }
 
 // Helper to get file icon based on extension
 function getFileIcon(filename) {
-    if (!filename) return '📄';
+    if (!filename) return '';
     const ext = filename.split('.').pop().toLowerCase();
     const icons = {
-        'jpg': '🖼️', 'jpeg': '️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️', 'svg': '🖼️',
-        'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', '3gp': '',
-        'mp3': '🎵', 'wav': '🎵', 'ogg': '🎵', 'aac': '', 'flac': '🎵',
+        'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'webp': '🖼️', 'svg': '🖼️',
+        'mp4': '🎬', 'avi': '🎬', 'mkv': '🎬', 'mov': '🎬', '3gp': '🎬',
+        'mp3': '🎵', 'wav': '', 'ogg': '🎵', 'aac': '🎵', 'flac': '',
         'pdf': '📕', 'doc': '📘', 'docx': '📘', 'txt': '📝', 'csv': '📊',
         'zip': '🗜️', 'rar': '️', '7z': '🗜️', 'tar': '🗜️',
         'apk': '📦', 'exe': '⚙️', 'bat': '️', 'sh': '⚙️',
