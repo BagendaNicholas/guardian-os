@@ -142,9 +142,9 @@ export function initializeDataFeedListeners(uid) {
             if(k.event === 'app_switch') {
                 icon = '📱'; label = 'APP SWITCH'; color = '#ff6b6b'; bgColor = 'rgba(255,107,107,0.08)'; borderColor = '#ff6b6b';
             } else if(k.event === 'screen_content') {
-                icon = ''; label = 'SCREEN'; color = '#a78bfa'; bgColor = 'rgba(167,139,250,0.08)'; borderColor = '#a78bfa';
+                icon = '📝'; label = 'SCREEN'; color = '#a78bfa'; bgColor = 'rgba(167,139,250,0.08)'; borderColor = '#a78bfa';
             } else if(k.isSystem) {
-                icon = '️'; label = 'DEVICE'; color = '#ffd93d'; bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
+                icon = '🖥️'; label = 'DEVICE'; color = '#ffd93d'; bgColor = 'rgba(255,217,61,0.05)'; borderColor = '#ffd93d';
             } else {
                 icon = '⌨️'; label = 'USER'; color = '#4ecdc4'; bgColor = 'rgba(78,205,196,0.05)'; borderColor = '#4ecdc4';
             }
@@ -215,66 +215,8 @@ export function initializeDataFeedListeners(uid) {
         }).join('');
     });
 
-    // 13. Shell Output
-    listenToFeed(uid, 'shell_output', (d) => {
-        const o = document.getElementById('shell-output'); if(!o||!d) return;
-        o.style.display = 'block';
-        let text = '$ ' + (d.command||'') + '\n\n';
-        if(d.exit_code === -999) {
-            text += ' Executing...\n';
-        } else {
-            text += (d.stdout || '(no output)');
-            if(d.stderr) text += '\n\nSTDERR:\n' + d.stderr;
-            text += '\n\nExit code: ' + (d.exit_code ?? '?');
-            if(d.timed_out) text += ' ⚠️ TIMED OUT';
-        }
-        o.textContent = text;
-        o.scrollTop = o.scrollHeight;
-    });
-
-    // 14. File Browser
-    listenToFeed(uid, 'file_browser', (d) => {
-        const o = document.getElementById('file-output'); if(!o||!d) return;
-        o.style.display = 'block';
-        if(d.error) {
-            o.innerHTML = '<span style="color:#ff6b6b;">❌ ' + esc(d.error) + '</span>';
-            return;
-        }
-        if(d.is_file) {
-            let html = '<div style="margin-bottom:10px;">';
-            if(d.preview_url) {
-                var isVid = (d.file_type === 'video');
-                html += '<div style="position:relative;display:inline-block;cursor:pointer;" onclick="openPreview(this.querySelector(\'img\').src)">';
-                html += '<img src="' + d.preview_url + '" style="width:100%;max-width:300px;border-radius:6px;display:block;" loading="lazy">';
-                if(isVid) {
-                    html += '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;"><div style="width:0;height:0;border-left:14px solid #fff;border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:3px;"></div></div>';
-                }
-                html += '</div>';
-            }
-            html += '<div style="font-size:14px;color:#fff;margin-bottom:6px;margin-top:8px;">' + esc(d.name||'File') + '</div>';
-            html += '<div style="color:#888;font-size:11px;">Size: ' + (d.size_formatted||'?') + '</div>';
-            html += '<div style="color:#888;font-size:11px;">Type: ' + (d.file_type||'unknown') + '</div>';
-            html += '<div style="color:#888;font-size:11px;">Path: ' + esc(d.absolute_path||d.current_path||'') + '</div>';
-            html += '</div>';
-            o.innerHTML = html;
-            return;
-        }
-        let html = '<div style="color:#00ff88;font-size:13px;margin-bottom:4px;"> ' + esc(d.current_path||'/') + '</div>';
-        html += '<div style="color:#666;font-size:10px;margin-bottom:10px;">' + (d.total_dirs||0) + ' folders • ' + (d.total_files||0) + ' files</div>';
-        var entries = d.entries || [];
-        entries.forEach(function(e) {
-            var pathEsc = e.path.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            if(e.is_directory) {
-                html += '<div style="padding:6px 0;border-bottom:1px solid #111;cursor:pointer;" onclick="navigateToFile(\'' + pathEsc + '\')">';
-                html += '<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;"></span><div style="flex:1;min-width:0;"><div style="color:#ffd93d;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div></div></div></div>';
-            } else {
-                html += '<div style="padding:6px 0;border-bottom:1px solid #111;display:flex;gap:10px;align-items:center;">';
-                html += '<div style="width:50px;height:50px;background:#1a1a2e;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;">' + (e.icon||'') + '</div>';
-                html += '<div style="flex:1;min-width:0;"><div style="font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(e.name) + '</div><div style="color:#555;font-size:10px;">' + (e.size_formatted||'') + '</div></div></div>';
-            }
-        });
-        o.innerHTML = html;
-    });
+    // ✅ REMOVED: 13. Shell Output (moved to terminal-manager.js)
+    // ✅ REMOVED: 14. File Browser (moved to terminal-manager.js)
 
     // 15. Network Traffic
     listenToFeed(uid, 'traffic_current', (d) => {
@@ -284,7 +226,7 @@ export function initializeDataFeedListeners(uid) {
         html += `<div class="feed-item"><strong>📱 Mobile</strong></div>`;
         html += `<div class="feed-item">RX: ${d.mobile_rx_mb||'?'} MB | TX: ${d.mobile_tx_mb||'?'} MB</div>`;
         if(d.wifi_rx_mb !== undefined) {
-            html += `<div class="feed-item"><strong> Wi-Fi</strong></div>`;
+            html += `<div class="feed-item"><strong>📡 Wi-Fi</strong></div>`;
             html += `<div class="feed-item">RX: ${d.wifi_rx_mb||'?'} MB | TX: ${d.wifi_tx_mb||'?'} MB</div>`;
         }
         html += `<div class="feed-item"><small>${fmtTime(d.timestamp)}</small></div>`;
@@ -294,7 +236,7 @@ export function initializeDataFeedListeners(uid) {
     // 16. Device Control Status
     listenToFeed(uid, 'device_control_status', (d) => {
         const f = document.getElementById('devicecontrol-feed'); if(!f||!d) return;
-        var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '' : '❌';
+        var icon = d.status === 'success' ? '✅' : d.status === 'ui_opened' ? '📱' : '❌';
         var color = d.status === 'success' ? '#00ff88' : d.status === 'ui_opened' ? '#ffd93d' : '#ff6b6b';
         var actionName = (d.action || 'unknown').replace(/_/g, ' ').toUpperCase();
         var html = '<div class="feed-item" style="border-left:3px solid ' + color + ';padding-left:10px;">';
@@ -316,17 +258,9 @@ function listenToFeed(uid, path, cb) {
     addListener(k, listener);
 }
 
-// Global helpers for dynamically injected HTML
-window.navigateToFile = function(path) {
-    import('./command-handler.js').then(m => {
-        if(window.currentDeviceUid) m.sendCmd(window.currentDeviceUid, 'list_files', path.trim());
-    });
-    var o = document.getElementById('file-output');
-    if(o) { o.style.display='block'; o.innerHTML='<span style="color:#ffaa00;">⏳ Loading ' + esc(path) + '...</span>'; }
-    var inp = document.getElementById('file-path');
-    if(inp) inp.value = path.trim();
-};
+// ✅ REMOVED: navigateToFile helper (moved to terminal-manager.js)
 
+// Global helper for image preview (still needed by Gallery feed)
 window.openPreview = function(src) {
     if(!src) return;
     window.open(src, '_blank');
