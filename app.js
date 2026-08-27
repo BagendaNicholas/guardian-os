@@ -63,7 +63,7 @@ authForm.addEventListener("submit", (e) => {
             .then((userCredential) => {
                 console.log("Operator successfully authenticated:", userCredential.user.email);
                 // Redirect directly to your dashboard control page
-                window.location.href = "./dashboard.html"; 
+                window.location.href = "./multi-dashboard.html"; 
             })
             .catch((error) => {
                 console.error("Auth Failure Code:", error.code);
@@ -97,6 +97,6 @@ authForm.addEventListener("submit", (e) => {
 onAuthStateChanged(auth, (user) => {
     // If an administrator is already logged in, skip login page and move directly to controls
     if (user && (window.location.pathname.endsWith("index.html") || window.location.pathname === "/" || window.location.pathname.endsWith("index.html/"))) {
-        window.location.href = "./dashboard.html";
+        window.location.href = "./multi-dashboard.html";
     }
 });
